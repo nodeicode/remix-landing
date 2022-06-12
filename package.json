@@ -1,28 +1,43 @@
 {
-  "private": true,
-  "sideEffects": false,
-  "scripts": {
-    "build": "remix build",
-    "deploy": "fly deploy --remote-only",
-    "dev": "remix dev",
-    "start": "remix-serve build"
-  },
-  "dependencies": {
-    "@remix-run/node": "^1.5.1",
-    "@remix-run/react": "^1.5.1",
-    "@remix-run/serve": "^1.5.1",
-    "react": "^17.0.2",
-    "react-dom": "^17.0.2"
-  },
-  "devDependencies": {
-    "@remix-run/dev": "^1.5.1",
-    "@remix-run/eslint-config": "^1.5.1",
-    "@types/react": "^17.0.45",
-    "@types/react-dom": "^17.0.17",
-    "eslint": "^8.15.0",
-    "typescript": "^4.6.4"
-  },
-  "engines": {
-    "node": ">=14"
-  }
+	"private": true,
+	"sideEffects": false,
+	"scripts": {
+		"build": "run-s build:*",
+		"build:css": "npm run generate:css -- --minify",
+		"build:remix": "remix build",
+		"dev": "run-p dev:*",
+		"dev:css": "npm run generate:css -- --watch",
+		"dev:remix": "remix dev",
+		"generate:css": "npx tailwindcss -i ./styles/tailwind.global.css -o ./app/tailwind.css",
+		"deploy": "fly deploy --remote-only",
+		"start": "remix-serve build"
+	},
+	"dependencies": {
+		"@fortawesome/fontawesome-svg-core": "^6.1.1",
+		"@fortawesome/free-regular-svg-icons": "^6.1.1",
+		"@fortawesome/free-solid-svg-icons": "^6.1.1",
+		"@fortawesome/react-fontawesome": "^0.1.18",
+		"@remix-run/node": "^1.5.1",
+		"@remix-run/react": "^1.5.1",
+		"@remix-run/serve": "^1.5.1",
+		"react": "^17.0.2",
+		"react-dom": "^17.0.2",
+		"typewriter-effect": "^2.18.2"
+	},
+	"devDependencies": {
+		"@remix-run/dev": "^1.5.1",
+		"@remix-run/eslint-config": "^1.5.1",
+		"@tailwindcss/typography": "^0.5.2",
+		"@types/react": "^17.0.45",
+		"@types/react-dom": "^17.0.17",
+		"eslint": "^8.15.0",
+		"npm-run-all": "^4.1.5",
+		"prettier": "^2.6.2",
+		"prettier-plugin-tailwindcss": "^0.1.11",
+		"tailwindcss": "^3.1.2",
+		"typescript": "^4.6.4"
+	},
+	"engines": {
+		"node": ">=14"
+	}
 }

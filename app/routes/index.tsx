@@ -40,7 +40,7 @@ export default function Index() {
 			<img src={getImage()} alt="coding" className="w-0 lg:w-[40vw]" />
 			<div className="prose prose-stone px-4 font-mono prose-a:text-blue-600 dark:prose-invert sm:px-2">
 				<FontAwesomeIcon
-					className={`w-[32px] transition-colors hover:cursor-pointer hover:text-gray ${getTextColor()}`}
+					className={`w-10 transition-colors hover:cursor-pointer hover:text-gray ${getTextColor()}`}
 					icon={getIcon()}
 					onClick={() => toggleTheme()}
 				/>
@@ -50,6 +50,9 @@ export default function Index() {
 					<TypewriterComponent
 						onInit={(typewriter) => {
 							typewriter
+								.typeString("Lohit Aryan")
+								.pauseFor(1000)
+								.deleteAll()
 								.typeString("a Web Dev")
 								.pauseFor(1000)
 								.deleteAll()

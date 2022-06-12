@@ -36,8 +36,8 @@ export default function Index() {
 	};
 
 	return (
-		<div className="flex h-screen flex-col items-center justify-center gap-8 bg-light transition-all dark:bg-dark sm:flex-row">
-			<img src={getImage()} alt="coding" className="w-[40vh] lg:w-[40vw]" />
+		<div className="flex h-screen flex-col items-center justify-center gap-8 bg-light transition-all dark:bg-dark lg:flex-row">
+			<img src={getImage()} alt="coding" className="w-0 lg:w-[40vw]" />
 			<div className="prose prose-stone px-4 font-mono prose-a:text-blue-600 dark:prose-invert sm:px-2">
 				<FontAwesomeIcon
 					className={`w-8 transition-colors hover:cursor-pointer hover:text-gray ${getTextColor()}`}

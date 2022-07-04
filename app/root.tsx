@@ -117,7 +117,7 @@ export default function App() {
 				<Links />
 			</head>
 			<body>
-				<div className="flex h-screen flex-col items-center gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">
+				<div className="flex min-h-screen flex-col items-center gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">
 					<img
 						src={darkMode ? "/coding_light.svg" : "/coding_dark.svg"}
 						alt="coding"

@@ -41,7 +41,18 @@ module.exports = {
 				yellow: "#ffc82c",
 				"gray-dark": "#273444",
 				gray: "#8492a6",
-				"gray-light": "#d3dce6",
+				"gray-light": "#f1f1f1",
+				dblue: "#58a6ff",
+			},
+			animation: {
+				"fade-in": "fadeIn 0.6s ease-in-out 0.3s forwards",
+				"fade-in-fast": "fadeIn 0.6s ease-in-out forwards",
+			},
+			keyframes: {
+				fadeIn: {
+					"0%": { opacity: "0" },
+					"100%": { opacity: "1" },
+				},
 			},
 		},
 	},

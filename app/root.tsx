@@ -123,7 +123,7 @@ export default function App() {
 						alt="coding"
 						className="w-0 lg:w-[40vw]"
 					/>
-					<div className="prose prose-stone min-w-[40vw] p-7 font-mono prose-a:text-blue-600 dark:prose-invert dark:prose-a:text-dblue lg:h-3/6 lg:px-4 ">
+					<div className="prose prose-stone min-w-[40vw] p-7 font-mono prose-a:text-blue-600 dark:prose-invert dark:prose-a:text-dblue lg:h-[50vh] lg:px-4 ">
 						<Nav {...{ darkMode, toggleTheme }} />
 						<Outlet context={{ darkMode, setTheme }} />
 					</div>

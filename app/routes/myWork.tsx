@@ -39,7 +39,7 @@ export default function myWork() {
 			</p>
 			<p>Stack: AngularJS, Groovy, Apache Solr</p>
 			<h2>
-				Chief Technical Officer @{" "}
+				Technical Lead @{" "}
 				<a rel="noopener" target="_blank" href="https://staging.ezcaza.com/">
 					Ezcaza
 				</a>{" "}

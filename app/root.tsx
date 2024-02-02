@@ -13,7 +13,7 @@ import type { LinksFunction } from "@remix-run/node";
 import styles from "./tailwind.css";
 import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
 import { MoonIcon, SunIcon } from "@heroicons/react/solid";
-import { UserIcon, BriefcaseIcon } from "@heroicons/react/solid";
+import { UserIcon, BriefcaseIcon, BeakerIcon } from "@heroicons/react/solid";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -36,7 +36,27 @@ export const NavIcon = (props: {
 	});
 
 	const getIcon = (p: React.ComponentProps<"svg">) => {
-		return props.currentIcon === 0 ? <UserIcon {...p} /> : <BriefcaseIcon {...p} />;
+		switch (props.currentIcon) {
+			case 0:
+			default:
+				return <UserIcon {...p} />;
+			case 1:
+				return <BriefcaseIcon {...p} />;
+			case 2:
+				return <BeakerIcon {...p} />;
+		}
+	};
+
+	const getText = () => {
+		switch (props.currentIcon) {
+			case 0:
+			default:
+				return "About Me";
+			case 1:
+				return "My Work";
+			case 2:
+				return "ML Runs";
+		}
 	};
 
 	return (
@@ -51,7 +71,7 @@ export const NavIcon = (props: {
 			})}
 			{active && (
 				<p className="lead animate-fade-in leading-8 opacity-0   dark:text-gray-light">
-					{props.currentIcon === 0 ? "About Me" : "My Work"}
+					{getText()}
 				</p>
 			)}
 		</div>
@@ -68,10 +88,17 @@ export const Nav = ({
 	const [activeIcon, setIcon] = useState(0);
 	const navigate = useNavigate();
 	useEffect(() => {
-		if (activeIcon === 0) {
-			navigate("/", { replace: true });
-		} else {
-			navigate("/myWork", { replace: true });
+		switch (activeIcon) {
+			case 0:
+			default:
+				navigate("/", { replace: true });
+				break;
+			case 1:
+				navigate("/myWork", { replace: true });
+				break;
+			case 2:
+				navigate("/mlExp", { replace: true });
+				break;
 		}
 	}, [activeIcon]);
 	const getIcon = (props: React.ComponentProps<"svg">) => {
@@ -81,25 +108,29 @@ export const Nav = ({
 		return darkMode ? "text-light" : "text-dark";
 	};
 	return (
-		<div className="mb-8 flex w-72 justify-between">
+		<div className="mb-8 flex gap-4">
 			{getIcon({
 				className: `ri-moon-fill h-12 w-8 transition-colors hover:cursor-pointer hover:text-gray ${getTextColor()}`,
 				onClick: () => toggleTheme(),
 			})}
-			<div className="flex gap-4">
-				<NavIcon
-					textColor={getTextColor()}
-					activeIcon={activeIcon}
-					setIcon={setIcon}
-					currentIcon={0}
-				/>
-				<NavIcon
-					textColor={getTextColor()}
-					activeIcon={activeIcon}
-					setIcon={setIcon}
-					currentIcon={1}
-				/>
-			</div>
+			<NavIcon
+				textColor={getTextColor()}
+				activeIcon={activeIcon}
+				setIcon={setIcon}
+				currentIcon={0}
+			/>
+			<NavIcon
+				textColor={getTextColor()}
+				activeIcon={activeIcon}
+				setIcon={setIcon}
+				currentIcon={1}
+			/>
+			<NavIcon
+				textColor={getTextColor()}
+				activeIcon={activeIcon}
+				setIcon={setIcon}
+				currentIcon={2}
+			/>
 		</div>
 	);
 };
@@ -117,12 +148,12 @@ export default function App() {
 				<Links />
 			</head>
 			<body>
-				<div className="flex min-h-screen flex-col items-center gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">
-					<img
+				<div className="flex min-h-screen flex-col gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">
+					{/* <img
 						src={darkMode ? "/coding_light.svg" : "/coding_dark.svg"}
 						alt="coding"
 						className="w-0 lg:w-[40vw]"
-					/>
+					/> */}
 					<div className="prose prose-stone min-w-[40vw] p-7 font-mono prose-a:text-blue-600 dark:prose-invert dark:prose-a:text-dblue lg:h-[50vh] lg:px-4 ">
 						<Nav {...{ darkMode, toggleTheme }} />
 						<Outlet context={{ darkMode, setTheme }} />

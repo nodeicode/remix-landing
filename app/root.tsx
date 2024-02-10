@@ -55,7 +55,7 @@ export const NavIcon = (props: {
 			case 1:
 				return "My Work";
 			case 2:
-				return "ML Runs";
+				return "ML Exps";
 		}
 	};
 
@@ -136,7 +136,7 @@ export const Nav = ({
 };
 
 export default function App() {
-	const [darkMode, setTheme] = useState(false);
+	const [darkMode, setTheme] = useState(true);
 	const toggleTheme = () => {
 		document.querySelector("body")?.classList.toggle("dark");
 		setTheme(!darkMode);
@@ -147,14 +147,14 @@ export default function App() {
 				<Meta />
 				<Links />
 			</head>
-			<body>
+			<body className="dark">
 				<div className="flex min-h-screen flex-col gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">
 					{/* <img
 						src={darkMode ? "/coding_light.svg" : "/coding_dark.svg"}
 						alt="coding"
 						className="w-0 lg:w-[40vw]"
 					/> */}
-					<div className="prose prose-stone min-w-[40vw] p-7 font-mono prose-a:text-blue-600 dark:prose-invert dark:prose-a:text-dblue lg:h-[50vh] lg:px-4 ">
+					<div className="prose prose-stone min-w-[40vw] p-7 font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:h-[50vh] lg:px-4 ">
 						<Nav {...{ darkMode, toggleTheme }} />
 						<Outlet context={{ darkMode, setTheme }} />
 					</div>

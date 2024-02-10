@@ -1,55 +1,29 @@
 import { Link } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/react/routeModules";
-
-export const links: LinksFunction = () => {
-	return [
-		{
-			rel: "preload",
-			href: "/coding_light.svg",
-			as: "image",
-		},
-		{
-			rel: "preload",
-			href: "/coding_dark.svg",
-			as: "image",
-		},
-	];
-};
 
 export default function mlExp() {
 	return (
 		<div className="animate-fade-in-fast">
-			<h1>Hey! here are some of my ML experiments</h1>
-			<h2>Basic Movie Recommender 🚧(WIP)</h2>
-			<p className="lead">stack: MLflow, Tensorflow, Spark, AWS Sage maker</p>
-			<p>Movie watched: Bad Boys (1995)</p>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				fill="none"
-				viewBox="0 0 24 24"
-				strokeWidth={1.5}
-				stroke="currentColor"
-				className="h-6 w-6"
-			>
-				<path
-					strokeLinecap="round"
-					strokeLinejoin="round"
-					d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3-3 3"
-				/>
-			</svg>
+			<h2>Hey! here are some of my ML experiments</h2>
 
-			<p>Recommendations: </p>
+			<h2>
+				<Link to="https://nextjs-chat-mu-opal.vercel.app/">Custom LLM Chatbot</Link> 🚧(WIP)
+			</h2>
+			<p className="lead">stack: NextJS, Langchain, Vercel AI SDK, Prompt Engineering</p>
 			<p>
-				Headless Body in Topless Bar (1995)
-				<br />
-				Last Summer in the Hamptons (1995)
-				<br />
-				Two Bits (1995)
-				<br />
-				Shadows (Cienie) (1988)
+				We use Hugging Face Inference Endpoints to deploy and scale a open source and custom
+				LLM model to run inference against through a openAI chatGPT based User interface.
 			</p>
 			<p>
-				Looks pretty simple 👀, but there is a lot going on the Backend to compute the results!
+				Using open Web APIs, Voice input is also enabled based on the{" "}
+				<Link to="https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API">
+					Web Speech API
+				</Link>
+				!
+			</p>
+
+			<h2>Basic Movie Recommender 🚧(WIP)</h2>
+			<p className="lead">stack: MLflow, Tensorflow, Spark, AWS Sage maker</p>
+			<p>
 				We have a recommendations model that pulls data from the{" "}
 				<Link to="https://www.kaggle.com/datasets/grouplens/movielens-20m-dataset">
 					Movie Lens

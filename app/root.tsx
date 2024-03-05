@@ -14,6 +14,7 @@ import styles from "./tailwind.css";
 import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
 import { MoonIcon, SunIcon } from "@heroicons/react/solid";
 import { UserIcon, BriefcaseIcon, BeakerIcon } from "@heroicons/react/solid";
+import { Analytics } from "@vercel/analytics/react";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -55,7 +56,7 @@ export const NavIcon = (props: {
 			case 1:
 				return "My Work";
 			case 2:
-				return "ML Exps";
+				return "Projects";
 		}
 	};
 
@@ -97,7 +98,7 @@ export const Nav = ({
 				navigate("/myWork", { replace: true });
 				break;
 			case 2:
-				navigate("/mlExp", { replace: true });
+				navigate("/projects", { replace: true });
 				break;
 		}
 	}, [activeIcon]);
@@ -146,6 +147,7 @@ export default function App() {
 			<head>
 				<Meta />
 				<Links />
+				<Analytics />
 			</head>
 			<body className="dark">
 				<div className="flex min-h-screen flex-col gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">

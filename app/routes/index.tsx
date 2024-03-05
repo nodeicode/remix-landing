@@ -15,12 +15,27 @@ export const links: LinksFunction = () => {
 	];
 };
 
+const getRandomLeadQuote = (): string => {
+	const quotes = [
+		"Turning some idea into a web app or just watching netflix",
+		"Grinding Assignments, applying to jobs or just watching anime",
+		"Tweaking algorithms, spamming applications, with K-drama or gaming as my cheat days.",
+		"Engineering the future, one job application at a time or on my playstation.",
+		"Building apps, chasing jobs, or getting lost in anime plots",
+		"Crafting code, curating resumes or tasting the town's best eats.",
+	];
+	const getRandomInt = (max: number) => {
+		return Math.floor(Math.random() * max);
+	};
+	return quotes[getRandomInt(quotes.length)];
+};
+
 export default function Index() {
 	return (
 		<div className="animate-fade-in-fast">
 			<h2>Hello there! let me introduce myself</h2>
 			<h1>I'm Lohit Aryan</h1>
-			<p className="lead">Turning some idea into a web app or just watching netflix</p>
+			<p className="lead">{getRandomLeadQuote()}</p>
 			<p>
 				Here is my{" "}
 				<a rel="noopener" target="_blank" href="https://github.com/nodeicode">

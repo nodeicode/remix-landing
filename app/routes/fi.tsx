@@ -45,7 +45,9 @@ export default function projects() {
 				<Table.Row key={index}>
 					<Table.Cell>{From}</Table.Cell>
 					{sentiments.map((value, index) => (
-						<Table.Cell>{value === "up" ? <ArrowUpIcon /> : <ArrowDownIcon />}</Table.Cell>
+						<Table.Cell>
+							{value === "up" ? <ArrowUpIcon color="green" /> : <ArrowDownIcon color="red" />}
+						</Table.Cell>
 					))}
 					<Table.Cell>{To}</Table.Cell>
 					<Table.Cell>

@@ -5,3 +5,8 @@
 .Typewriter {
 	display: inline-block;
 }
+
+input {
+	width: inherit;
+	border-radius: inherit;
+}

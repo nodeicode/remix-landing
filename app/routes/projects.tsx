@@ -13,7 +13,7 @@ export default function projects() {
 				dataset to compute results based on movies a user likes.
 			</p>
 			<p>
-				Leveraging <Link to="https://mlflow.org//">MLflow</Link> we created a end to end
+				Leveraging <Link to="https://mlflow.org/">MLflow</Link> we created a end to end
 				production ready pipeline to train, test, deploy and track ML models at scale.
 			</p>
 			<h2>

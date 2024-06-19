@@ -10,14 +10,18 @@ import {
 	useOutletContext,
 } from "@remix-run/react";
 import type { LinksFunction } from "@remix-run/node";
+import radixStyles from "@radix-ui/themes/styles.css";
 import styles from "./tailwind.css";
 import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { MoonIcon, SunIcon } from "@heroicons/react/solid";
+import { CurrencyDollarIcon, MoonIcon, SunIcon } from "@heroicons/react/solid";
 import { UserIcon, BriefcaseIcon, BeakerIcon } from "@heroicons/react/solid";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/remix";
 
-export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
+export const links: LinksFunction = () => [
+	{ rel: "stylesheet", href: styles },
+	{ rel: "stylesheet", href: radixStyles },
+];
 
 export const meta: MetaFunction = () => ({
 	charset: "utf-8",
@@ -46,6 +50,8 @@ export const NavIcon = (props: {
 				return <BriefcaseIcon {...p} />;
 			case 2:
 				return <BeakerIcon {...p} />;
+			case 3:
+				return <CurrencyDollarIcon {...p} />;
 		}
 	};
 
@@ -58,6 +64,8 @@ export const NavIcon = (props: {
 				return "My Work";
 			case 2:
 				return "Projects";
+			case 3:
+				return "Finance";
 		}
 	};
 
@@ -87,7 +95,7 @@ export const Nav = ({
 	darkMode: boolean;
 	toggleTheme: () => void;
 }) => {
-	const [activeIcon, setIcon] = useState(0);
+	const [activeIcon, setIcon] = useState(3);
 	const navigate = useNavigate();
 	useEffect(() => {
 		switch (activeIcon) {
@@ -100,6 +108,9 @@ export const Nav = ({
 				break;
 			case 2:
 				navigate("/projects", { replace: true });
+				break;
+			case 3:
+				navigate("/fi", { replace: true });
 				break;
 		}
 	}, [activeIcon]);
@@ -132,6 +143,12 @@ export const Nav = ({
 				activeIcon={activeIcon}
 				setIcon={setIcon}
 				currentIcon={2}
+			/>
+			<NavIcon
+				textColor={getTextColor()}
+				activeIcon={activeIcon}
+				setIcon={setIcon}
+				currentIcon={3}
 			/>
 		</div>
 	);

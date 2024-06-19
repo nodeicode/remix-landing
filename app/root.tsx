@@ -95,7 +95,7 @@ export const Nav = ({
 	darkMode: boolean;
 	toggleTheme: () => void;
 }) => {
-	const [activeIcon, setIcon] = useState(3);
+	const [activeIcon, setIcon] = useState(0);
 	const navigate = useNavigate();
 	useEffect(() => {
 		switch (activeIcon) {

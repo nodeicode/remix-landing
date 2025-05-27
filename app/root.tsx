@@ -64,8 +64,6 @@ export const NavIcon = (props: {
 				return "My Work";
 			case 2:
 				return "Projects";
-			case 3:
-				return "Finance";
 		}
 	};
 

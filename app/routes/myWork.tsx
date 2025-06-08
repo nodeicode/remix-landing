@@ -1,5 +1,5 @@
-import { LinksFunction } from "@remix-run/node";
-import { useDarkMode } from "~/root";
+import { LinksFunction } from "react-router";
+import { useDarkMode } from "../root";
 
 export const links: LinksFunction = () => {
 	return [

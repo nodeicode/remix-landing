@@ -1,34 +1,50 @@
-import type { MetaFunction } from "@remix-run/node";
+import type { MetaFunction } from "react-router";
 import {
-	Links,
-	LiveReload,
-	Meta,
-	Outlet,
-	Scripts,
-	ScrollRestoration,
-	useNavigate,
-	useOutletContext,
-} from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
-import radixStyles from "@radix-ui/themes/styles.css";
-import styles from "./tailwind.css";
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+  useNavigate,
+  useOutletContext,
+} from "react-router";
+import type { LinksFunction } from "react-router";
 import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { CurrencyDollarIcon, MoonIcon, SunIcon } from "@heroicons/react/solid";
+import { MoonIcon, SunIcon } from "@heroicons/react/solid";
 import { UserIcon, BriefcaseIcon, BeakerIcon } from "@heroicons/react/solid";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/remix";
 
-export const links: LinksFunction = () => [
-	{ rel: "stylesheet", href: styles },
-	{ rel: "stylesheet", href: radixStyles },
-];
 
-export const meta: MetaFunction = () => ({
-	charset: "utf-8",
-	title: "Lohit Aryan",
-	viewport: "width=device-width,initial-scale=1",
-	description: "Well this is a site about me, what else did you expect?",
-});
+import "@radix-ui/themes/styles.css"
+import "./root.css";
+
+// export const links: LinksFunction = () => {
+// 	return [
+// 		{
+// 			rel: "preload",
+// 			href: "/coding_light.svg",
+// 			as: "image",
+// 		},
+// 		{
+// 			rel: "preload",
+// 			href: "/coding_dark.svg",
+// 			as: "image",
+// 		},
+// 	];
+// };
+
+export const meta: MetaFunction = () => {
+	return [
+		{ title: "Lohit Aryan" },
+		{ name: "viewport", content: "width=device-width,initial-scale=1" },
+		{
+			name: "description",
+			content: "Well this is a site about me, what else did you expect?",
+		},
+	];
+}
+
 
 export const NavIcon = (props: {
 	textColor: string;
@@ -50,8 +66,6 @@ export const NavIcon = (props: {
 				return <BriefcaseIcon {...p} />;
 			case 2:
 				return <BeakerIcon {...p} />;
-			case 3:
-				return <CurrencyDollarIcon {...p} />;
 		}
 	};
 
@@ -142,12 +156,6 @@ export const Nav = ({
 				setIcon={setIcon}
 				currentIcon={2}
 			/>
-			<NavIcon
-				textColor={getTextColor()}
-				activeIcon={activeIcon}
-				setIcon={setIcon}
-				currentIcon={3}
-			/>
 		</div>
 	);
 };
@@ -155,7 +163,7 @@ export const Nav = ({
 export default function App() {
 	const [darkMode, setTheme] = useState(true);
 	const toggleTheme = () => {
-		document.querySelector("body")?.classList.toggle("dark");
+		// document.querySelector("body")?.classList.toggle("dark");
 		setTheme(!darkMode);
 	};
 	return (
@@ -163,10 +171,10 @@ export default function App() {
 			<head>
 				<Meta />
 				<Links />
-				<Analytics />
-				<SpeedInsights />
+				{/* <Analytics /> */}
+				{/* <SpeedInsights /> */}
 			</head>
-			<body className="dark">
+			<body className={darkMode ? "dark" : ""}>
 				<div className="flex min-h-screen flex-col gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">
 					{/* <img
 						src={darkMode ? "/coding_light.svg" : "/coding_dark.svg"}
@@ -180,7 +188,6 @@ export default function App() {
 				</div>
 				<ScrollRestoration />
 				<Scripts />
-				<LiveReload />
 			</body>
 		</html>
 	);

@@ -13,7 +13,7 @@ import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
 import { MoonIcon, SunIcon } from "@heroicons/react/solid";
 import { UserIcon, BriefcaseIcon, BeakerIcon } from "@heroicons/react/solid";
 import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/remix";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 
 import "@radix-ui/themes/styles.css"
@@ -171,8 +171,8 @@ export default function App() {
 			<head>
 				<Meta />
 				<Links />
-				{/* <Analytics /> */}
-				{/* <SpeedInsights /> */}
+				<Analytics />
+				<SpeedInsights />
 			</head>
 			<body className={darkMode ? "dark" : ""}>
 				<div className="flex min-h-screen flex-col gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">

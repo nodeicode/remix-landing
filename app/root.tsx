@@ -85,11 +85,11 @@ export const NavIcon = (props: {
 		<div
 			onClick={() => !active && props.setIcon(props.currentIcon)}
 			className={`flex flex-col ${
-				active ? "h-46 " : "h-12"
-			} w-12 items-center rounded-full px-2 outline outline-2  outline-dark transition-all duration-[450ms]  hover:cursor-pointer hover:text-gray hover:outline-gray dark:outline-gray-light  dark:hover:outline-gray`}
+				active ? "h-46 " : "h-8 md:h-12"
+			} w-8 md:w-12 items-center rounded-full px-2 outline outline-2  outline-dark transition-all duration-[450ms]  hover:cursor-pointer hover:text-gray hover:outline-gray dark:outline-gray-light  dark:hover:outline-gray`}
 		>
 			{getIcon({
-				className: `h-12 w-8  ${props.textColor} text-inherit`,
+				className: `h-12 w-6 md:w-8  ${props.textColor} text-inherit`,
 			})}
 			{active && (
 				<p className="lead animate-fade-in leading-8 opacity-0  dark:text-gray-light [writing-mode:vertical-rl]">
@@ -182,7 +182,7 @@ export default function App() {
 						alt="coding"
 						className="w-0 lg:w-[40vw]"
 					/> */}
-					<div className="prose flex flex-row-reverse gap-6 max-w-[60vw]! w-[60vw] prose-stone p-7 font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:px-4 ">
+					<div className="prose prose-sm md:prose-base lg:prose-lg flex flex-row-reverse gap-2 md:gap-6 min-w-[60vw]! prose-stone p-7 font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:px-4 ">
 						<Nav {...{ darkMode, toggleTheme }} />
 						<div className="lg:h-[80vh] lg:overflow-y-auto pr-2">
 						<Outlet context={{ darkMode, setTheme }} />

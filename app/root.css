@@ -17,8 +17,37 @@ input {
 
 body {
 	background-color: var(--bg-color);
-	transition: background-color 0.3s ease, color 0.3s ease;
 }
+/* Scrollbar css */
+/* Firefox */
+.dark * {
+	scrollbar-width: 8px;
+	scrollbar-color: var(--tw-prose-body) var(--colors-dark);
+}
+
+* {
+	scrollbar-width: 8px;
+	scrollbar-color: var(--tw-prose-body) var(--colors-light);
+}
+
+/* Chrome, Edge, and Safari */
+*::-webkit-scrollbar {
+	width: 8px;
+}
+
+*::-webkit-scrollbar-track {
+	background: inherit;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+	background-color: var(--colors-gray);
+	border-radius: 10px;
+}
+*::-webkit-scrollbar-thumb {
+	background-color: var(--colors-light);
+	border-radius: 10px;
+}
+/* ----- end Scrollbar css ----- */
 
 @theme {
 	/* Screens */

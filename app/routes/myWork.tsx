@@ -21,23 +21,49 @@ export default function myWork() {
 	return (
 		<div className="animate-fade-in-fast">
 			<h2>
+				Machine learning Graduate Engineer @{" "}
+				<a rel="noopener" target="_blank" href="https://ora.umd.edu/">
+					U of M Division of Research
+				</a>{" "}
+			</h2>
+			<p>
+				Engineered collaboratively with various Departments at the University of Maryland<br />
+				Built a robust and automated langchain pipeline 
+				to process research data via an ensemble of Amazon Nova Premier and 
+				Nova Lite models to ensure federal compliance of research proposals.
+			</p>
+			<p>Stack: Streamlit, Python, MySQL, Langchain, AWS Bedrock, Hugging Face, AWS </p>
+
+			<h2>
+				Ex - Gradute Software Engineering Lead @{" "}
+				<a rel="noopener" target="_blank" href="https://extension.umd.edu/programs/agriculture-food-systems/program-areas/farm-and-agribusiness-management/grain-marketing/crop-budgets/">
+					U of M Extension
+				</a>{" "}
+			</h2>
+			<p>
+				Spearheaded the development of a dynamic Grain budgeting and data assessment tool, <br /> 
+				leveraging a comprehensive datanase to provide farmers with real-time insights into their crop budgets and financial planning.
+			</p>
+			<p>Stack: NextJS, Radix UI, AWS Amplify, DynamoDB, AWS </p>
+		
+			<h2>
 				Ex - Software Engineer @{" "}
 				<a rel="noopener" target="_blank" href="https://www.zoominfo.com/">
 					Zoominfo
 				</a>{" "}
 			</h2>
 			<p>
-				<s>Working</s> Worked on the{" "}
+				Worked on the{" "}
 				<img
 					src={darkMode ? "/talent-os-dark.svg" : "/talent-os-light.svg"}
 					alt="Talent OS"
-					className="my-0 inline-block h-7"
+					className="m-0! inline-block h-7"
 				></img>{" "}
 				and{" "}
 				<img
 					src={darkMode ? "/sales-os-dark.svg" : "/sales-os-light.svg"}
 					alt="Sales OS"
-					className="my-0 inline-block h-7"
+					className="m-0! inline-block h-7"
 				></img>{" "}
 				platforms, <br /> to leverage zoominfo's best in class contact and buying signal data
 				to provide customers with an end-to-end pipeline that can, source and hire a candidate
@@ -46,7 +72,7 @@ export default function myWork() {
 			<p>Stack: AngularJS, NestJS, Groovy on Grails, Apache Solr, Jenkins, Google Cloud </p>
 			<h2>
 				Ex - Technical Lead @{" "}
-				<a rel="noopener" target="_blank" href="https://staging.ezcaza.com/">
+				<a rel="noopener" target="_blank" href="https://ezcaza.com/">
 					Ezcaza
 				</a>{" "}
 			</h2>

@@ -8,7 +8,7 @@ import {
   useNavigate,
   useOutletContext,
 } from "react-router";
-import type { LinksFunction } from "react-router";
+// import type { LinksFunction } from "react-router";
 import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
 import { MoonIcon, SunIcon } from "@heroicons/react/solid";
 import { UserIcon, BriefcaseIcon, BeakerIcon } from "@heroicons/react/solid";
@@ -73,9 +73,9 @@ export const NavIcon = (props: {
 		switch (props.currentIcon) {
 			case 0:
 			default:
-				return "About Me";
+				return "About";
 			case 1:
-				return "My Work";
+				return "Work";
 			case 2:
 				return "Projects";
 		}
@@ -84,15 +84,15 @@ export const NavIcon = (props: {
 	return (
 		<div
 			onClick={() => !active && props.setIcon(props.currentIcon)}
-			className={`flex ${
-				active ? "w-40 " : "w-12"
-			} h-12 items-center gap-2 rounded-full px-2 outline outline-2  outline-dark transition-all duration-[450ms]  hover:cursor-pointer hover:text-gray hover:outline-gray dark:outline-gray-light  dark:hover:outline-gray`}
+			className={`flex flex-col ${
+				active ? "h-46 " : "h-12"
+			} w-12 items-center rounded-full px-2 outline outline-2  outline-dark transition-all duration-[450ms]  hover:cursor-pointer hover:text-gray hover:outline-gray dark:outline-gray-light  dark:hover:outline-gray`}
 		>
 			{getIcon({
 				className: `h-12 w-8  ${props.textColor} text-inherit`,
 			})}
 			{active && (
-				<p className="lead animate-fade-in leading-8 opacity-0   dark:text-gray-light">
+				<p className="lead animate-fade-in leading-8 opacity-0  dark:text-gray-light [writing-mode:vertical-rl]">
 					{getText()}
 				</p>
 			)}
@@ -110,6 +110,7 @@ export const Nav = ({
 	const [activeIcon, setIcon] = useState(0);
 	const navigate = useNavigate();
 	useEffect(() => {
+		try{
 		switch (activeIcon) {
 			case 0:
 			default:
@@ -121,9 +122,9 @@ export const Nav = ({
 			case 2:
 				navigate("/projects", { replace: true });
 				break;
-			case 3:
-				navigate("/fi", { replace: true });
-				break;
+		}
+		} catch (e) {
+			console.error("Error navigating to the route:", e);
 		}
 	}, [activeIcon]);
 	const getIcon = (props: React.ComponentProps<"svg">) => {
@@ -133,7 +134,7 @@ export const Nav = ({
 		return darkMode ? "text-light" : "text-dark";
 	};
 	return (
-		<div className="mb-8 flex gap-4">
+		<div className="mb-8 flex flex-col gap-4 items-center">
 			{getIcon({
 				className: `ri-moon-fill h-12 w-8 transition-colors hover:cursor-pointer hover:text-gray ${getTextColor()}`,
 				onClick: () => toggleTheme(),
@@ -170,20 +171,22 @@ export default function App() {
 		<html lang="en">
 			<head>
 				<Meta />
-				<Links />
+				{/* <Lilinnks /> */}
 				<Analytics />
 				<SpeedInsights />
 			</head>
-			<body className={darkMode ? "dark" : ""}>
-				<div className="flex min-h-screen flex-col gap-8 bg-light transition-all dark:bg-dark lg:flex-row lg:justify-center">
+			<body className={`${darkMode ? "dark" : ""} max-w-screen max-h-screen`}>
+				<div className="flex flex-col gap-7 bg-light transition-all dark:bg-dark lg:flex-row justify-center items-center">
 					{/* <img
 						src={darkMode ? "/coding_light.svg" : "/coding_dark.svg"}
 						alt="coding"
 						className="w-0 lg:w-[40vw]"
 					/> */}
-					<div className="prose prose-stone min-w-[40vw] p-7 font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:h-[50vh] lg:px-4 ">
+					<div className="prose flex flex-row-reverse gap-6 max-w-[60vw]! w-[60vw] prose-stone p-7 font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:px-4 ">
 						<Nav {...{ darkMode, toggleTheme }} />
+						<div className="lg:h-[80vh] lg:overflow-y-auto pr-2">
 						<Outlet context={{ darkMode, setTheme }} />
+						</div>
 					</div>
 				</div>
 				<ScrollRestoration />

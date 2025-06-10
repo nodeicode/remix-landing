@@ -85,7 +85,7 @@ export const NavIcon = (props: {
 		<div
 			onClick={() => !active && props.setIcon(props.currentIcon)}
 			className={`flex flex-col ${
-				active ? "h-46 " : "h-8 md:h-12"
+				active ? "h-48 " : "h-8 md:h-12"
 			} w-8 md:w-12 items-center rounded-full px-2 outline outline-2  outline-dark transition-all duration-[450ms]  hover:cursor-pointer hover:text-gray hover:outline-gray dark:outline-gray-light  dark:hover:outline-gray`}
 		>
 			{getIcon({
@@ -182,7 +182,7 @@ export default function App() {
 						alt="coding"
 						className="w-0 lg:w-[40vw]"
 					/> */}
-					<div className="prose prose-sm md:prose-base lg:prose-lg flex flex-row-reverse gap-2 md:gap-6 min-w-[60vw]! prose-stone p-7 font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:px-4 ">
+					<div className="prose prose-sm md:prose-base lg:prose-lg flex flex-row-reverse gap-2 md:gap-6 min-w-[50vw]! prose-stone p-7 font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:px-4 ">
 						<Nav {...{ darkMode, toggleTheme }} />
 						<div className="lg:h-[80vh] lg:overflow-y-auto pr-2">
 						<Outlet context={{ darkMode, setTheme }} />

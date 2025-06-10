@@ -27,12 +27,12 @@ export default function myWork() {
 				</a>{" "}
 			</h2>
 			<p>
-				Engineered collaboratively with various Departments at the University of Maryland<br />
+				Engineered collaboratively with various Departments at the University of Maryland, 
 				Built a robust and automated langchain pipeline 
 				to process research data via an ensemble of Amazon Nova Premier and 
 				Nova Lite models to ensure federal compliance of research proposals.
 			</p>
-			<p>Stack: Streamlit, Python, MySQL, Langchain, AWS Bedrock, Hugging Face, AWS </p>
+			<p className="lead">Stack: Streamlit, Python, MySQL, Langchain, AWS Bedrock, Hugging Face, AWS </p>
 
 			<h2>
 				Ex - Gradute Software Engineering Lead @{" "}
@@ -41,10 +41,10 @@ export default function myWork() {
 				</a>{" "}
 			</h2>
 			<p>
-				Spearheaded the development of a dynamic Grain budgeting and data assessment tool, <br /> 
-				leveraging a comprehensive datanase to provide farmers with real-time insights into their crop budgets and financial planning.
+				Spearheaded the development of a dynamic Grain budgeting and data assessment tool,
+				leveraging a comprehensive database to provide farmers with real-time insights into their crop budgets and financial planning.
 			</p>
-			<p>Stack: NextJS, Radix UI, AWS Amplify, DynamoDB, AWS </p>
+			<p className="lead">Stack: NextJS, Radix UI, AWS Amplify, DynamoDB, AWS </p>
 		
 			<h2>
 				Ex - Software Engineer @{" "}
@@ -69,7 +69,7 @@ export default function myWork() {
 				to provide customers with an end-to-end pipeline that can, source and hire a candidate
 				or convert buyer research into actionable sales prospects!{" "}
 			</p>
-			<p>Stack: AngularJS, NestJS, Groovy on Grails, Apache Solr, Jenkins, Google Cloud </p>
+			<p className="lead">Stack: AngularJS, NestJS, Groovy on Grails, Apache Solr, Jenkins, Google Cloud </p>
 			<h2>
 				Ex - Technical Lead @{" "}
 				<a rel="noopener" target="_blank" href="https://ezcaza.com/">
@@ -80,7 +80,7 @@ export default function myWork() {
 				Bringing real estate to the 21st century, <br /> our vision is to change how real
 				estate tranasctions are managed by title companies and real estate vendors.
 			</p>
-			<p>Stack: NextJS, Express.js, MySQL, Github Actions, Vercel </p>
+			<p className="lead">Stack: NextJS, Express.js, MySQL, Github Actions, Vercel </p>
 		</div>
 	);
 }

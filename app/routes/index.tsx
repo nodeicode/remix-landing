@@ -3,10 +3,11 @@ import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 
 // Import your existing component content
-import IndexContent from "../components/index";
+import IndexContent from "../components/about";
 import MyWorkContent from "../components/myWork";
 import ProjectsContent from "../components/projects";
-
+import { useDarkMode } from "~/root";
+import Nav from "../components/nav";
 
 // Enhanced SectionWrapper with react-intersection-observer
 const SectionWrapper = ({
@@ -21,7 +22,7 @@ const SectionWrapper = ({
 	const { ref, inView, entry } = useInView({
 		threshold: [0.3, 0.5, 0.7, 0.9],
 		rootMargin: "-30% 0px -30% 0px",
-		onChange: (inView, entry) => onInView(inView, entry),
+		onChange: onInView,
 	});
 
 	const sectionVariants = {
@@ -52,7 +53,7 @@ const SectionWrapper = ({
 			whileInView="visible"
 			viewport={{ margin: "-20px", amount: 0.3 }}
 			variants={sectionVariants}
-			className="min-h-screen py-4 flex flex-col justify-start"
+			className="min-h-[90vh] py-4 flex flex-col justify-start"
 		>
 			<motion.div
 				variants={{
@@ -71,17 +72,17 @@ const SectionWrapper = ({
 };
 
 export default function App() {
-	const [darkMode, setTheme] = useState(true);
+	const { darkMode, setTheme } = useDarkMode();
+	const toggleTheme = () => {
+		setTheme(!darkMode);
+	};
+
 	const [activeSection, setActiveSection] = useState(0);
 	const [sectionVisibility, setSectionVisibility] = useState({
 		about: { inView: false, ratio: 0 },
 		work: { inView: false, ratio: 0 },
 		projects: { inView: false, ratio: 0 },
 	});
-
-	const toggleTheme = () => {
-		setTheme(!darkMode);
-	};
 
 	const handleSectionView =
 		(sectionName: string) => (inView: boolean, entry: IntersectionObserverEntry) => {
@@ -112,20 +113,27 @@ export default function App() {
 	}, [sectionVisibility]);
 
 	return (
-		<motion.div
-			className="h-screen overflow-y-auto transition-all pr-2"
-			initial={{ opacity: 0 }}
-			animate={{ opacity: 1 }}
-		>
-			<SectionWrapper id="about" onInView={handleSectionView("about")}>
-				<IndexContent />
-			</SectionWrapper>
-			<SectionWrapper id="work" onInView={handleSectionView("work")}>
-				<MyWorkContent {...{ darkMode }} />
-			</SectionWrapper>
-			<SectionWrapper id="projects" onInView={handleSectionView("projects")}>
-				<ProjectsContent />
-			</SectionWrapper>
-		</motion.div>
+		<>
+			<Nav
+				activeIcon={activeSection}
+				setIcon={setActiveSection}
+				{...{ darkMode, toggleTheme }}
+			/>
+			<motion.div
+				className="h-screen overflow-y-auto transition-all pr-2"
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+			>
+				<SectionWrapper id="about" onInView={handleSectionView("about")}>
+					<IndexContent />
+				</SectionWrapper>
+				<SectionWrapper id="work" onInView={handleSectionView("work")}>
+					<MyWorkContent {...{ darkMode }} />
+				</SectionWrapper>
+				<SectionWrapper id="projects" onInView={handleSectionView("projects")}>
+					<ProjectsContent />
+				</SectionWrapper>
+			</motion.div>
+		</>
 	);
 }

@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { ChevronDoubleDownIcon } from "@heroicons/react/solid";
 
 const quotes = [
 	"Turning some idea into a web app or just watching netflix",
@@ -40,6 +42,25 @@ export default function Index() {
 				</a>{" "}
 				if that's your thing
 			</p>
+			{/* Keep Scrolling Indicator */}
+			<motion.div
+				className="flex flex-col mt-[25%] items-center text-gray-500 dark:text-gray-400 pointer-events-none"
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				transition={{ delay: 1.2, duration: 0.5 }} // Delay to appear after main content
+			>
+				<p>Keep scrolling</p>
+				<motion.div
+					animate={{ y: [0, 10, 0] }} // Stays a 10px movement down and back up
+					transition={{
+						duration: 1.5,
+						repeat: Infinity,
+						ease: [0.68, -0.55, 0.265, 1.55], // easeInOutBack - creates an overshoot effect
+					}}
+				>
+					<ChevronDoubleDownIcon className="h-6 w-6 mt-1" />
+				</motion.div>
+			</motion.div>
 		</div>
 	);
 }

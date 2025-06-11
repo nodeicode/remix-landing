@@ -1,45 +1,131 @@
-import { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { useInView } from "react-intersection-observer";
 
-const quotes = [
-	"Turning some idea into a web app or just watching netflix",
-	"Grinding Assignments, applying to jobs or just watching anime",
-	"Tweaking algorithms, spamming applications, with K-drama or gaming as my cheat days.",
-	"Engineering the future, one job application at a time or on my playstation.",
-	"Building apps, chasing jobs, or getting lost in anime plots",
-	"Crafting code, curating resumes or tasting the town's best eats.",
-];
+// Import your existing component content
+import IndexContent from "../components/index";
+import MyWorkContent from "../components/myWork";
+import ProjectsContent from "../components/projects";
 
-export default function Index() {
-	const [leadQuote, setLeadQuote] = useState(quotes[0]); // Use first quote as default
 
-	useEffect(() => {
-		// Only randomize on client after hydration
-		const getRandomInt = (max: number) => {
-			return Math.floor(Math.random() * max);
-		};
-		setLeadQuote(quotes[getRandomInt(quotes.length)]);
-	}, []);
+// Enhanced SectionWrapper with react-intersection-observer
+const SectionWrapper = ({
+	children,
+	id,
+	onInView,
+}: {
+	children: React.ReactNode;
+	id: string;
+	onInView: (inView: boolean, entry: IntersectionObserverEntry) => void;
+}) => {
+	const { ref, inView, entry } = useInView({
+		threshold: [0.3, 0.5, 0.7, 0.9],
+		rootMargin: "-30% 0px -30% 0px",
+		onChange: (inView, entry) => onInView(inView, entry),
+	});
+
+	const sectionVariants = {
+		hidden: {
+			opacity: 0,
+			y: 30,
+			scale: 0.99,
+			filter: "blur(2px)",
+		},
+		visible: {
+			opacity: 1,
+			y: 0,
+			scale: 1,
+			filter: "blur(0px)",
+			transition: {
+				duration: 0.6,
+				ease: [0.25, 0.46, 0.45, 0.94],
+				staggerChildren: 0.1,
+			},
+		},
+	};
 
 	return (
-		<div className="animate-fade-in-fast">
-			<h2>Hello there! let me introduce myself</h2>
-			<h1>I'm Lohit Aryan</h1>
-			<p className="lead">{leadQuote}</p>
-			<p>
-				Here is my{" "}
-				<a rel="noopener" target="_blank" href="https://github.com/nodeicode">
-					Github
-				</a>{" "}
-				its been quiet for a while there, <br />
-				<a rel="noopener" target="_blank" href="https://twitter.com/nodeicode">
-					Twitter
-				</a>{" "}
-				casual convo?,{" "}
-				<a rel="noopener" target="_blank" href="https://www.linkedin.com/in/lohit-aryan/">
-					Linkedin
-				</a>{" "}
-				if that's your thing
-			</p>
-		</div>
+		<motion.section
+			ref={ref}
+			id={id}
+			initial="hidden"
+			whileInView="visible"
+			viewport={{ margin: "-20px", amount: 0.3 }}
+			variants={sectionVariants}
+			className="min-h-screen py-4 flex flex-col justify-start"
+		>
+			<motion.div
+				variants={{
+					hidden: { opacity: 0, x: -20 },
+					visible: {
+						opacity: 1,
+						x: 0,
+						transition: { delay: 0.2, duration: 0.6 },
+					},
+				}}
+			>
+				{children}
+			</motion.div>
+		</motion.section>
+	);
+};
+
+export default function App() {
+	const [darkMode, setTheme] = useState(true);
+	const [activeSection, setActiveSection] = useState(0);
+	const [sectionVisibility, setSectionVisibility] = useState({
+		about: { inView: false, ratio: 0 },
+		work: { inView: false, ratio: 0 },
+		projects: { inView: false, ratio: 0 },
+	});
+
+	const toggleTheme = () => {
+		setTheme(!darkMode);
+	};
+
+	const handleSectionView =
+		(sectionName: string) => (inView: boolean, entry: IntersectionObserverEntry) => {
+			setSectionVisibility((prev) => ({
+				...prev,
+				[sectionName]: { inView, ratio: entry.intersectionRatio },
+			}));
+		};
+
+	// Determine active section based on highest intersection ratio
+	useEffect(() => {
+		const sections = ["about", "work", "projects"];
+		let maxRatio = 0;
+		let activeIndex = 0;
+
+		sections.forEach((section, index) => {
+			const visibility = sectionVisibility[section as keyof typeof sectionVisibility];
+			if (visibility.inView && visibility.ratio > maxRatio) {
+				maxRatio = visibility.ratio;
+				activeIndex = index;
+			}
+		});
+
+		// Only update if there's a section in view
+		if (maxRatio > 0.1) {
+			setActiveSection(activeIndex);
+		}
+	}, [sectionVisibility]);
+
+	return (
+		<motion.div
+			className="h-screen overflow-y-auto transition-all pr-2"
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+		>
+			<SectionWrapper id="about" onInView={handleSectionView("about")}>
+				<IndexContent />
+			</SectionWrapper>
+			<SectionWrapper id="work" onInView={handleSectionView("work")}>
+				<MyWorkContent {...{ darkMode }} />
+			</SectionWrapper>
+			<SectionWrapper id="projects" onInView={handleSectionView("projects")}>
+				<ProjectsContent />
+			</SectionWrapper>
+		</motion.div>
 	);
 }

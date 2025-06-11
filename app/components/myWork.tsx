@@ -1,23 +1,4 @@
-import { LinksFunction } from "react-router";
-import { useDarkMode } from "../root";
-
-export const links: LinksFunction = () => {
-	return [
-		{
-			rel: "preload",
-			href: "/talent-os-dark.svg",
-			as: "image",
-		},
-		{
-			rel: "preload",
-			href: "/talent-os-light.svg",
-			as: "image",
-		},
-	];
-};
-
-export default function myWork() {
-	const { darkMode } = useDarkMode();
+export default function myWork({darkMode}: {darkMode: boolean}) {
 	return (
 		<div className="animate-fade-in-fast">
 			<h2>

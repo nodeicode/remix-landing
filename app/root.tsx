@@ -13,6 +13,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 
 import "@radix-ui/themes/styles.css";
 import "./root.css";
+import { StarsBackground } from "./components/stars";
 
 export const meta: MetaFunction = () => {
 	return [
@@ -45,6 +46,10 @@ export default function App() {
 					darkMode ? "dark" : ""
 				} max-w-screen max-h-screen overflow-hidden pt-[4vh] lg:pt-[2vh]  bg-light dark:bg-dark transition-all`}
 			>
+				<StarsBackground
+					starColor={darkMode ? "#fff" : "#000"}
+					className="absolute inset-0 flex items-center justify-center rounded-xl"
+				/>
 				<div className="flex flex-col gap-7 overflow-hidden bg-light dark:bg-dark lg:flex-row justify-center items-center px-5 relative z-10">
 					<div className="prose prose-sm md:prose-base lg:prose-lg flex flex-row-reverse gap-2 md:gap-6 min-w-[50vw]! overflow-hidden prose-stone font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:px-4">
 						<Outlet context={{ darkMode, setTheme }} />

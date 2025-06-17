@@ -22,13 +22,14 @@ body {
 /* Firefox */
 .dark * {
 	scrollbar-width: 8px;
-	scrollbar-color: var(--tw-prose-body) var(--colors-dark);
+	scrollbar-color: var(--tw-prose-body) transparent;
 }
 
 * {
 	scrollbar-width: 8px;
-	scrollbar-color: var(--tw-prose-body) var(--colors-light);
+	scrollbar-color: var(--tw-prose-body) transparent;
 }
+*/
 
 /* Chrome, Edge, and Safari */
 *::-webkit-scrollbar {
@@ -40,11 +41,11 @@ body {
 }
 
 .dark *::-webkit-scrollbar-thumb {
-	background-color: var(--colors-gray);
+	background-color: transparent;
 	border-radius: 10px;
 }
 *::-webkit-scrollbar-thumb {
-	background-color: var(--colors-light);
+	background-color: transparent;
 	border-radius: 10px;
 }
 /* ----- end Scrollbar css ----- */

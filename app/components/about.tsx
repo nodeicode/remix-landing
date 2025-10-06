@@ -44,7 +44,7 @@ export default function Index() {
 			</p>
 			{/* Keep Scrolling Indicator */}
 			<motion.div
-				className="flex flex-col mt-[25%] items-center text-gray-500 dark:text-gray-400 pointer-events-none"
+				className="flex flex-col mt-16 items-center text-gray-500 dark:text-gray-400 pointer-events-none"
 				initial={{ opacity: 0 }}
 				animate={{ opacity: 1 }}
 				transition={{ delay: 1.2, duration: 0.5 }} // Delay to appear after main content

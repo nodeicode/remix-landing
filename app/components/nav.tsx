@@ -7,6 +7,7 @@ const NavIcon = (props: {
 	activeIcon: number;
 	currentIcon: number;
 	setIcon: Dispatch<SetStateAction<number>>;
+	onManualScroll?: (index: number) => void;
 }) => {
 	const [active, setActive] = useState(false);
 	useEffect(() => {
@@ -43,9 +44,11 @@ const NavIcon = (props: {
 			const targetId = sectionIds[props.currentIcon];
 			const element = document.getElementById(targetId);
 			if (element) {
+				if (props.onManualScroll) {
+					props.onManualScroll(props.currentIcon);
+				}
 				element.scrollIntoView({ behavior: "smooth", block: "start" });
 			}
-			props.setIcon(props.currentIcon);
 		}
 	};
 
@@ -73,11 +76,13 @@ export default function Nav({
 	toggleTheme,
 	activeIcon,
 	setIcon,
+	onManualScroll,
 }: {
 	darkMode: boolean;
 	toggleTheme: () => void;
 	activeIcon: number;
 	setIcon: Dispatch<SetStateAction<number>>;
+	onManualScroll?: (index: number) => void;
 }) {
 	const getIcon = (props: React.ComponentProps<"svg">) => {
 		return darkMode ? <SunIcon {...props} /> : <MoonIcon {...props} />;
@@ -95,18 +100,21 @@ export default function Nav({
 				textColor={getTextColor()}
 				activeIcon={activeIcon}
 				setIcon={setIcon}
+				onManualScroll={onManualScroll}
 				currentIcon={0}
 			/>
 			<NavIcon
 				textColor={getTextColor()}
 				activeIcon={activeIcon}
 				setIcon={setIcon}
+				onManualScroll={onManualScroll}
 				currentIcon={1}
 			/>
 			<NavIcon
 				textColor={getTextColor()}
 				activeIcon={activeIcon}
 				setIcon={setIcon}
+				onManualScroll={onManualScroll}
 				currentIcon={2}
 			/>
 		</div>

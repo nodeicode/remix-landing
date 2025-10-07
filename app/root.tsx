@@ -50,11 +50,7 @@ export default function App() {
 					starColor={darkMode ? "#fff" : "#000"}
 					className="absolute inset-0 flex items-center justify-center rounded-xl"
 				/> */}
-				<div className="flex flex-col gap-7 overflow-hidden bg-light dark:bg-dark lg:flex-row justify-center items-center px-4 relative z-10">
-					<div className="prose prose-sm md:prose-base lg:prose-lg flex flex-row-reverse md:gap-6 min-w-[50vw]! overflow-hidden prose-stone font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:px-4">
-						<Outlet context={{ darkMode, setTheme }} />
-					</div>
-				</div>
+				<Outlet context={{ darkMode, setTheme }} />
 				<ScrollRestoration />
 				<Scripts />
 			</body>

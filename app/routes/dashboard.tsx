@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLoaderData } from "react-router";
 import { TradesTable } from "../components/trades-table";
+import { ActivePositions } from "../components/active-positions";
 
 // Types for Alpaca API responses
 interface PortfolioHistoryData {
@@ -81,12 +82,12 @@ export async function loader() {
 				timeframe === "1D"
 					? "1D"
 					: timeframe === "1W"
-					? "1W"
-					: timeframe === "1M"
-					? "1M"
-					: timeframe === "3M"
-					? "3M"
-					: "all";
+						? "1W"
+						: timeframe === "1M"
+							? "1M"
+							: timeframe === "3M"
+								? "3M"
+								: "all";
 
 			const historyUrl = `${ALPACA_BASE_URL}/v2/account/portfolio/history?period=${period}&timeframe=${
 				timeframe === "1D" ? "5Min" : timeframe === "1W" ? "1H" : "1D"
@@ -181,6 +182,36 @@ export default function Dashboard() {
 		key: string;
 		direction: "asc" | "desc";
 	} | null>(null);
+
+	// Register service worker for PWA
+	useEffect(() => {
+		if ("serviceWorker" in navigator) {
+			navigator.serviceWorker
+				.register("/sw.js")
+				.then((registration) => {
+					console.log("Service Worker registered:", registration);
+
+					// Request notification permission
+					if ("Notification" in window && Notification.permission === "default") {
+						Notification.requestPermission().then((permission) => {
+							console.log("Notification permission:", permission);
+						});
+					}
+
+					// Listen for messages from service worker
+					navigator.serviceWorker.addEventListener("message", (event) => {
+						if (event.data.type === "POSITIONS_UPDATED" && event.data.hasChanges) {
+							// Reload the page to fetch new data
+							console.log("Positions updated, reloading dashboard...");
+							window.location.reload();
+						}
+					});
+				})
+				.catch((error) => {
+					console.error("Service Worker registration failed:", error);
+				});
+		}
+	}, []);
 
 	// Helper function to extract underlying ticker from option symbols
 	// Option format: AAPL250117C00150000 -> AAPL
@@ -281,11 +312,40 @@ export default function Dashboard() {
 		return realizedTrades.sort((a, b) => b.date.getTime() - a.date.getTime());
 	}, [activities]);
 
-	// Filter trades by underlying ticker
+	// Filter trades by underlying ticker and timeframe
 	const filteredTrades = useMemo(() => {
-		if (filteredSymbol === "all") return tradeHistory;
-		return tradeHistory.filter((trade) => trade.underlyingTicker === filteredSymbol);
-	}, [tradeHistory, filteredSymbol]); // Sort trades
+		let filtered = tradeHistory;
+
+		// Filter by ticker
+		if (filteredSymbol !== "all") {
+			filtered = filtered.filter((trade) => trade.underlyingTicker === filteredSymbol);
+		}
+
+		// Filter by timeframe
+		if (selectedTimeframe !== "ALL") {
+			const now = new Date();
+			const cutoffDate = new Date();
+
+			switch (selectedTimeframe) {
+				case "1D":
+					cutoffDate.setDate(now.getDate() - 1);
+					break;
+				case "1W":
+					cutoffDate.setDate(now.getDate() - 7);
+					break;
+				case "1M":
+					cutoffDate.setMonth(now.getMonth() - 1);
+					break;
+				case "3M":
+					cutoffDate.setMonth(now.getMonth() - 3);
+					break;
+			}
+
+			filtered = filtered.filter((trade) => trade.date >= cutoffDate);
+		}
+
+		return filtered;
+	}, [tradeHistory, filteredSymbol, selectedTimeframe]); // Sort trades
 	const sortedTrades = useMemo(() => {
 		const sorted = [...filteredTrades];
 		if (sortConfig) {
@@ -377,12 +437,12 @@ export default function Dashboard() {
 			selectedTimeframe === "1D"
 				? Math.sqrt(252)
 				: selectedTimeframe === "1W"
-				? Math.sqrt(52)
-				: selectedTimeframe === "1M"
-				? Math.sqrt(12)
-				: selectedTimeframe === "3M"
-				? Math.sqrt(4)
-				: Math.sqrt(252); // Daily for ALL
+					? Math.sqrt(52)
+					: selectedTimeframe === "1M"
+						? Math.sqrt(12)
+						: selectedTimeframe === "3M"
+							? Math.sqrt(4)
+							: Math.sqrt(252); // Daily for ALL
 		const sharpeRatio = stdDev !== 0 ? (meanReturn / stdDev) * annualizationFactor : 0;
 
 		// Sortino Ratio (only downside deviation)
@@ -414,12 +474,12 @@ export default function Dashboard() {
 			(selectedTimeframe === "1D"
 				? 252
 				: selectedTimeframe === "1W"
-				? 52
-				: selectedTimeframe === "1M"
-				? 12
-				: selectedTimeframe === "3M"
-				? 4
-				: 1); // No annualization for ALL
+					? 52
+					: selectedTimeframe === "1M"
+						? 12
+						: selectedTimeframe === "3M"
+							? 4
+							: 1); // No annualization for ALL
 		const calmarRatio = maxDrawdown !== 0 ? annualizedReturn / maxDrawdown : 0;
 
 		return {
@@ -447,49 +507,68 @@ export default function Dashboard() {
 	};
 
 	return (
-		<div className="h-screen bg-gray-50 dark:bg-gray-900 p-6 overflow-auto">
+		<div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-3 md:p-6 overflow-auto">
 			<div className="max-w-7xl mx-auto">
 				{/* Header */}
-				<div className="mb-8">
-					<h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+				<div className="mb-6 md:mb-8">
+					<h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
 						Trading Dashboard
 					</h1>
-					<p className="text-gray-600 dark:text-gray-400">
+					<p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
 						Portfolio performance and trade history
 					</p>
 				</div>
 
-				{/* Timeframe Selector */}
+				{/* Combined Filters Row */}
 				<div className="mb-6 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-					<div className="flex items-center gap-4">
-						<label className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-							Timeframe:
-						</label>
-						<div className="flex gap-2">
-							{(["1D", "1W", "1M", "3M", "ALL"] as Timeframe[]).map((timeframe) => (
-								<button
-									key={timeframe}
-									onClick={() => setSelectedTimeframe(timeframe)}
-									className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-										selectedTimeframe === timeframe
-											? "bg-blue-600 text-white"
-											: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-									}`}
-								>
-									{timeframe}
-								</button>
-							))}
+					<div className="flex flex-col md:flex-row md:items-center gap-4">
+						<div className="flex items-center gap-2 flex-1">
+							<label className="text-sm text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">
+								Timeframe:
+							</label>
+							<div className="flex gap-1 md:gap-2 flex-wrap">
+								{(["1D", "1W", "1M", "3M", "ALL"] as Timeframe[]).map((timeframe) => (
+									<button
+										key={timeframe}
+										onClick={() => setSelectedTimeframe(timeframe)}
+										className={`px-2 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg font-medium transition-colors ${
+											selectedTimeframe === timeframe
+												? "bg-blue-600 text-white"
+												: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+										}`}
+									>
+										{timeframe}
+									</button>
+								))}
+							</div>
+						</div>
+						<div className="flex items-center gap-2 flex-1">
+							<label className="text-sm text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">
+								Filter by Ticker:
+							</label>
+							<select
+								value={filteredSymbol}
+								onChange={(e) => setFilteredSymbol(e.target.value)}
+								className="flex-1 px-3 md:px-4 py-1.5 md:py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+							>
+								<option value="all">All Tickers</option>
+								{uniqueSymbols.map((symbol) => (
+									<option key={symbol} value={symbol}>
+										{symbol}
+									</option>
+								))}
+							</select>
 						</div>
 					</div>
 				</div>
 
 				{/* Portfolio Summary Cards */}
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
 							Starting Value ({selectedTimeframe})
 						</div>
-						<div className="text-2xl font-bold text-gray-900 dark:text-white">
+						<div className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
 							$
 							{portfolioMetrics.startingValue.toLocaleString(undefined, {
 								minimumFractionDigits: 2,
@@ -498,9 +577,11 @@ export default function Dashboard() {
 						</div>
 					</div>
 
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Current Value</div>
-						<div className="text-2xl font-bold text-gray-900 dark:text-white">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
+							Current Value
+						</div>
+						<div className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
 							$
 							{portfolioMetrics.currentValue.toLocaleString(undefined, {
 								minimumFractionDigits: 2,
@@ -509,12 +590,12 @@ export default function Dashboard() {
 						</div>
 					</div>
 
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
 							P&L ({selectedTimeframe})
 						</div>
 						<div
-							className={`text-2xl font-bold ${
+							className={`text-xl md:text-2xl font-bold ${
 								portfolioMetrics.pnl >= 0
 									? "text-green-600 dark:text-green-400"
 									: "text-red-600 dark:text-red-400"
@@ -528,12 +609,12 @@ export default function Dashboard() {
 						</div>
 					</div>
 
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
 							P&L % ({selectedTimeframe})
 						</div>
 						<div
-							className={`text-2xl font-bold ${
+							className={`text-xl md:text-2xl font-bold ${
 								portfolioMetrics.pnlPercent >= 0
 									? "text-green-600 dark:text-green-400"
 									: "text-red-600 dark:text-red-400"
@@ -546,24 +627,24 @@ export default function Dashboard() {
 				</div>
 
 				{/* Risk-Adjusted Metrics */}
-				<div className="mb-4">
-					<h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+				<div className="mb-3 md:mb-4">
+					<h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3">
 						Risk-Adjusted Performance Metrics
 					</h2>
 				</div>
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
 							Sharpe Ratio
 							<span className="text-xs ml-1">(Risk/Reward)</span>
 						</div>
 						<div
-							className={`text-2xl font-bold ${
+							className={`text-xl md:text-2xl font-bold ${
 								portfolioMetrics.sharpeRatio >= 1
 									? "text-green-600 dark:text-green-400"
 									: portfolioMetrics.sharpeRatio >= 0
-									? "text-yellow-600 dark:text-yellow-400"
-									: "text-red-600 dark:text-red-400"
+										? "text-yellow-600 dark:text-yellow-400"
+										: "text-red-600 dark:text-red-400"
 							}`}
 						>
 							{portfolioMetrics.sharpeRatio.toFixed(2)}
@@ -572,25 +653,25 @@ export default function Dashboard() {
 							{portfolioMetrics.sharpeRatio >= 2
 								? "Excellent"
 								: portfolioMetrics.sharpeRatio >= 1
-								? "Good"
-								: portfolioMetrics.sharpeRatio >= 0
-								? "Fair"
-								: "Poor"}
+									? "Good"
+									: portfolioMetrics.sharpeRatio >= 0
+										? "Fair"
+										: "Poor"}
 						</div>
 					</div>
 
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
 							Sortino Ratio
 							<span className="text-xs ml-1">(Downside Risk)</span>
 						</div>
 						<div
-							className={`text-2xl font-bold ${
+							className={`text-xl md:text-2xl font-bold ${
 								portfolioMetrics.sortinoRatio >= 1
 									? "text-green-600 dark:text-green-400"
 									: portfolioMetrics.sortinoRatio >= 0
-									? "text-yellow-600 dark:text-yellow-400"
-									: "text-red-600 dark:text-red-400"
+										? "text-yellow-600 dark:text-yellow-400"
+										: "text-red-600 dark:text-red-400"
 							}`}
 						>
 							{portfolioMetrics.sortinoRatio.toFixed(2)}
@@ -599,25 +680,25 @@ export default function Dashboard() {
 							{portfolioMetrics.sortinoRatio >= 2
 								? "Excellent"
 								: portfolioMetrics.sortinoRatio >= 1
-								? "Good"
-								: portfolioMetrics.sortinoRatio >= 0
-								? "Fair"
-								: "Poor"}
+									? "Good"
+									: portfolioMetrics.sortinoRatio >= 0
+										? "Fair"
+										: "Poor"}
 						</div>
 					</div>
 
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
 							Max Drawdown
 							<span className="text-xs ml-1">(Peak to Trough)</span>
 						</div>
 						<div
-							className={`text-2xl font-bold ${
+							className={`text-xl md:text-2xl font-bold ${
 								portfolioMetrics.maxDrawdown <= 0.1
 									? "text-green-600 dark:text-green-400"
 									: portfolioMetrics.maxDrawdown <= 0.2
-									? "text-yellow-600 dark:text-yellow-400"
-									: "text-red-600 dark:text-red-400"
+										? "text-yellow-600 dark:text-yellow-400"
+										: "text-red-600 dark:text-red-400"
 							}`}
 						>
 							-{(portfolioMetrics.maxDrawdown * 100).toFixed(2)}%
@@ -626,25 +707,25 @@ export default function Dashboard() {
 							{portfolioMetrics.maxDrawdown <= 0.1
 								? "Low Risk"
 								: portfolioMetrics.maxDrawdown <= 0.2
-								? "Moderate"
-								: portfolioMetrics.maxDrawdown <= 0.3
-								? "High"
-								: "Very High"}
+									? "Moderate"
+									: portfolioMetrics.maxDrawdown <= 0.3
+										? "High"
+										: "Very High"}
 						</div>
 					</div>
 
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
 							Calmar Ratio
 							<span className="text-xs ml-1">(Return/Drawdown)</span>
 						</div>
 						<div
-							className={`text-2xl font-bold ${
+							className={`text-xl md:text-2xl font-bold ${
 								portfolioMetrics.calmarRatio >= 3
 									? "text-green-600 dark:text-green-400"
 									: portfolioMetrics.calmarRatio >= 0
-									? "text-yellow-600 dark:text-yellow-400"
-									: "text-red-600 dark:text-red-400"
+										? "text-yellow-600 dark:text-yellow-400"
+										: "text-red-600 dark:text-red-400"
 							}`}
 						>
 							{portfolioMetrics.calmarRatio.toFixed(2)}
@@ -653,58 +734,56 @@ export default function Dashboard() {
 							{portfolioMetrics.calmarRatio >= 3
 								? "Excellent"
 								: portfolioMetrics.calmarRatio >= 1
-								? "Good"
-								: portfolioMetrics.calmarRatio >= 0
-								? "Fair"
-								: "Poor"}
+									? "Good"
+									: portfolioMetrics.calmarRatio >= 0
+										? "Fair"
+										: "Poor"}
 						</div>
 					</div>
 				</div>
 
 				{/* Trade Summary */}
-				<div className="mb-4">
-					<h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+				<div className="mb-3 md:mb-4">
+					<h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3">
 						Closed Positions Summary
 					</h2>
 				</div>
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Trades</div>
-						<div className="text-2xl font-bold text-gray-900 dark:text-white">
+				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-6">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
+							Total Trades
+						</div>
+						<div className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
 							{metrics.totalTrades}
 						</div>
 					</div>
 
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-						<div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Win Rate</div>
-						<div className="text-2xl font-bold text-gray-900 dark:text-white">
+					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
+						<div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 mb-1">
+							Win Rate
+						</div>
+						<div className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
 							{metrics.winRate.toFixed(1)}%
 						</div>
 					</div>
 				</div>
 
-				{/* Filters */}
-				<div className="mb-6 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-					<div className="flex items-center gap-4">
-						<label className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-							Filter by Ticker:
-						</label>
-						<select
-							value={filteredSymbol}
-							onChange={(e) => setFilteredSymbol(e.target.value)}
-							className="px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-						>
-							<option value="all">All Tickers</option>
-							{uniqueSymbols.map((symbol) => (
-								<option key={symbol} value={symbol}>
-									{symbol}
-								</option>
-							))}
-						</select>
-						<span className="text-sm text-gray-500 dark:text-gray-400">
+				{/* Active Positions */}
+				<div className="mb-6">
+					<h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white mb-3">
+						Active Positions
+					</h2>
+					<ActivePositions positions={positions} getUnderlyingTicker={getUnderlyingTicker} />
+				</div>
+
+				{/* Trade History */}
+				<div className="mb-4">
+					<h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white mb-3">
+						Trade History ({selectedTimeframe})
+						<span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
 							{sortedTrades.length} of {metrics.totalTrades} trades
 						</span>
-					</div>
+					</h2>
 				</div>
 
 				{/* Trades Table */}

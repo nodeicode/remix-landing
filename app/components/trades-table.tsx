@@ -59,91 +59,89 @@ export function TradesTable({ trades, onSort, sortConfig, metrics }: TradesTable
 
 	return (
 		<div>
-			<div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-				<h2 className="text-2xl font-bold text-gray-900 dark:text-white">Trade History</h2>
-			</div>
-
-			<div className="overflow-x-auto">
-				<table className="w-full">
+			<div className="overflow-x-auto -mx-3 md:mx-0">
+				<table className="w-full min-w-full">
 					<thead className="bg-gray-50 dark:bg-gray-700">
 						<tr>
 							<th
 								onClick={() => onSort("date")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1 md:gap-2">
 									Date
 									{getSortIcon("date")}
 								</div>
 							</th>
 							<th
 								onClick={() => onSort("underlyingTicker")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1 md:gap-2">
 									Ticker
 									{getSortIcon("underlyingTicker")}
 								</div>
 							</th>
 							<th
 								onClick={() => onSort("quantity")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">
-									Quantity
+								<div className="flex items-center gap-1 md:gap-2">
+									Qty
 									{getSortIcon("quantity")}
 								</div>
 							</th>
 							<th
 								onClick={() => onSort("buyPrice")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="hidden md:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">
-									Avg Buy Price
+								<div className="flex items-center gap-1 md:gap-2">
+									Buy Price
 									{getSortIcon("buyPrice")}
 								</div>
 							</th>
 							<th
 								onClick={() => onSort("sellPrice")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="hidden md:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1 md:gap-2">
 									Sell Price
 									{getSortIcon("sellPrice")}
 								</div>
 							</th>
 							<th
 								onClick={() => onSort("buyValue")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="hidden lg:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1 md:gap-2">
 									Buy Value
 									{getSortIcon("buyValue")}
 								</div>
 							</th>
 							<th
 								onClick={() => onSort("sellValue")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="hidden lg:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1 md:gap-2">
 									Sell Value
 									{getSortIcon("sellValue")}
 								</div>
 							</th>
 							<th
 								onClick={() => onSort("pnl")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1 md:gap-2">
 									P&L
 									{getSortIcon("pnl")}
 								</div>
 							</th>
 							<th
 								onClick={() => onSort("pnlPercent")}
-								className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
 							>
-								<div className="flex items-center gap-2">P&L %{getSortIcon("pnlPercent")}</div>
+								<div className="flex items-center gap-1 md:gap-2">
+									P&L %{getSortIcon("pnlPercent")}
+								</div>
 							</th>
 						</tr>
 					</thead>
@@ -152,7 +150,7 @@ export function TradesTable({ trades, onSort, sortConfig, metrics }: TradesTable
 							<tr>
 								<td
 									colSpan={9}
-									className="px-6 py-8 text-center text-gray-500 dark:text-gray-400"
+									className="px-3 md:px-6 py-8 text-center text-xs md:text-sm text-gray-500 dark:text-gray-400"
 								>
 									No trades found
 								</td>
@@ -163,29 +161,32 @@ export function TradesTable({ trades, onSort, sortConfig, metrics }: TradesTable
 									key={trade.id}
 									className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
 								>
-									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-										{trade.date.toLocaleDateString()} {trade.date.toLocaleTimeString()}
+									<td className="px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
+										<div className="md:hidden">{trade.date.toLocaleDateString()}</div>
+										<div className="hidden md:block">
+											{trade.date.toLocaleDateString()} {trade.date.toLocaleTimeString()}
+										</div>
 									</td>
-									<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+									<td className="px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-gray-900 dark:text-white">
 										{trade.underlyingTicker}
 									</td>
-									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+									<td className="px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
 										{trade.quantity.toLocaleString()}
 									</td>
-									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+									<td className="hidden md:table-cell px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
 										${trade.buyPrice.toFixed(2)}
 									</td>
-									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+									<td className="hidden md:table-cell px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
 										${trade.sellPrice.toFixed(2)}
 									</td>
-									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+									<td className="hidden lg:table-cell px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
 										$
 										{trade.buyValue.toLocaleString(undefined, {
 											minimumFractionDigits: 1,
 											maximumFractionDigits: 4,
 										})}
 									</td>
-									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+									<td className="hidden lg:table-cell px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
 										$
 										{trade.sellValue.toLocaleString(undefined, {
 											minimumFractionDigits: 1,
@@ -193,7 +194,7 @@ export function TradesTable({ trades, onSort, sortConfig, metrics }: TradesTable
 										})}
 									</td>
 									<td
-										className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${
+										className={`px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold ${
 											trade.pnl >= 0 ? "text-green-600" : "text-red-600"
 										}`}
 									>
@@ -204,7 +205,7 @@ export function TradesTable({ trades, onSort, sortConfig, metrics }: TradesTable
 										})}
 									</td>
 									<td
-										className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${
+										className={`px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold ${
 											trade.pnlPercent >= 0 ? "text-green-600" : "text-red-600"
 										}`}
 									>

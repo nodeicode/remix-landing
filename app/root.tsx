@@ -17,12 +17,20 @@ import "./root.css";
 
 export const meta: MetaFunction = () => {
 	return [
-		{ title: "Lohit Aryan" },
-		{ name: "viewport", content: "width=device-width,initial-scale=1" },
+		{ title: "Trading Dashboard - Lohit Aryan" },
+		{ name: "viewport", content: "width=device-width,initial-scale=1,viewport-fit=cover" },
 		{
 			name: "description",
-			content: "Well this is a site about me, what else did you expect?",
+			content: "Real-time trading dashboard with portfolio analytics and push notifications",
 		},
+		// PWA Meta Tags
+		{ name: "mobile-web-app-capable", content: "yes" },
+		{ name: "apple-mobile-web-app-capable", content: "yes" },
+		{ name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+		{ name: "apple-mobile-web-app-title", content: "Trading Dashboard" },
+		{ name: "theme-color", content: "#2563eb" },
+		// iOS Splash Screens
+		{ name: "apple-touch-fullscreen", content: "yes" },
 	];
 };
 
@@ -34,6 +42,12 @@ export default function App() {
 			<head>
 				<Meta />
 				<Links />
+				{/* PWA Manifest */}
+				<link rel="manifest" href="/manifest.json" />
+				{/* Apple Touch Icons */}
+				<link rel="apple-touch-icon" href="/favicon.ico" />
+				<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+				{/* Preload images */}
 				<link rel="preload" href="/talent-os-dark.svg" as="image" />
 				<link rel="preload" href="/talent-os-light.svg" as="image" />
 				<link rel="preload" href="/sales-os-dark.svg" as="image" />

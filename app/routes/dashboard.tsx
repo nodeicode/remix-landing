@@ -559,6 +559,200 @@ export default function Dashboard() {
 								))}
 							</select>
 						</div>
+
+						{/* Test Notification Buttons */}
+						<div className="flex gap-2 flex-wrap">
+							{/* TODO: remove once testing is done */}
+							{/* Direct Test (No Service Worker) */}
+							<button
+								onClick={() => {
+									console.log("=== DIRECT NOTIFICATION TEST ===");
+									console.log("Notification permission:", Notification.permission);
+									console.log("Notification supported:", "Notification" in window);
+
+									if (!("Notification" in window)) {
+										alert("❌ Notifications not supported in this browser");
+										return;
+									}
+
+									if (Notification.permission === "denied") {
+										alert(
+											"❌ Notifications blocked. Please enable in:\n\n1. Chrome Settings → Privacy and security → Site Settings → Notifications\n2. macOS System Settings → Notifications → Google Chrome"
+										);
+										return;
+									}
+
+									if (Notification.permission !== "granted") {
+										console.log("Requesting permission...");
+										Notification.requestPermission().then((permission) => {
+											console.log("Permission result:", permission);
+											if (permission === "granted") {
+												try {
+													const notification = new Notification("✅ Success!", {
+														body: "Direct notifications are working!\nService worker notifications should work too.",
+														icon: "/icon-192.png",
+														badge: "/icon-192.png",
+														tag: "direct-test",
+													});
+													console.log("✅ Direct notification created:", notification);
+												} catch (error) {
+													console.error("❌ Failed to create notification:", error);
+													alert("Error creating notification: " + error);
+												}
+											} else {
+												alert("Permission denied. Check browser and system settings.");
+											}
+										});
+									} else {
+										try {
+											console.log("Creating direct notification...");
+											const notification = new Notification("🔔 Direct Test", {
+												body: "This is a direct notification (no service worker).\nIf you see this, permissions are OK!",
+												icon: "/icon-192.png",
+												badge: "/icon-192.png",
+												tag: "direct-test-" + Date.now(),
+												requireInteraction: false,
+											});
+											console.log("✅ Notification created:", notification);
+
+											notification.onclick = () => {
+												console.log("Notification clicked!");
+												window.focus();
+											};
+
+											notification.onerror = (error) => {
+												console.error("Notification error:", error);
+											};
+
+											setTimeout(() => {
+												console.log(
+													"✅ If you didn't see a notification, check:\n1. macOS Focus/Do Not Disturb\n2. System Settings → Notifications → Chrome\n3. Chrome Settings → Site Settings → Notifications"
+												);
+											}, 1000);
+										} catch (error) {
+											console.error("❌ Error:", error);
+											alert(
+												"Error: " +
+													(error instanceof Error ? error.message : String(error)) +
+													"\n\nCheck console for details."
+											);
+										}
+									}
+								}}
+								className="px-3 md:px-4 py-1.5 md:py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+								title="Test notifications directly (bypasses service worker)"
+							>
+								<span>🔔</span>
+								<span className="hidden sm:inline">Direct Test</span>
+								<span className="sm:hidden">Test</span>
+							</button>
+
+							<button
+								onClick={() => {
+									console.log("=== SERVICE WORKER NOTIFICATION TEST ===");
+									if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
+										console.error("❌ Service Worker not active");
+										alert("Service Worker not active. Please refresh the page.");
+										return;
+									}
+
+									console.log(
+										"Service Worker controller:",
+										navigator.serviceWorker.controller
+									);
+									console.log("Notification permission:", Notification.permission);
+
+									if (Notification.permission !== "granted") {
+										Notification.requestPermission().then((permission) => {
+											console.log("Permission result:", permission);
+											if (permission === "granted" && navigator.serviceWorker.controller) {
+												// Send test notification
+												console.log("Sending TEST_NOTIFICATION message...");
+												navigator.serviceWorker.controller.postMessage({
+													type: "TEST_NOTIFICATION",
+													testType: "opened",
+												});
+												console.log("🔔 Test notification sent (Position Opened)");
+												setTimeout(() => {
+													if (navigator.serviceWorker.controller) {
+														navigator.serviceWorker.controller.postMessage({
+															type: "TEST_NOTIFICATION",
+															testType: "closed",
+														});
+														console.log("🔔 Test notification sent (Position Closed)");
+													}
+												}, 2000);
+											} else {
+												alert(
+													"❌ Notification permission denied. Please enable in browser settings."
+												);
+											}
+										});
+									} else {
+										// Send test notifications
+										if (navigator.serviceWorker.controller) {
+											console.log("Sending TEST_NOTIFICATION message (opened)...");
+											navigator.serviceWorker.controller.postMessage({
+												type: "TEST_NOTIFICATION",
+												testType: "opened",
+											});
+											console.log("✅ Message sent - check console for SW logs");
+
+											// Send a closed notification after 2 seconds
+											setTimeout(() => {
+												if (navigator.serviceWorker.controller) {
+													console.log("Sending TEST_NOTIFICATION message (closed)...");
+													navigator.serviceWorker.controller.postMessage({
+														type: "TEST_NOTIFICATION",
+														testType: "closed",
+													});
+													console.log("✅ Message sent - check console for SW logs");
+												}
+											}, 2000);
+										}
+									}
+								}}
+								className="px-3 md:px-4 py-1.5 md:py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+								title="Send test notifications (opened + closed)"
+							>
+								<span>🔔</span>
+								<span className="hidden sm:inline">SW Test</span>
+								<span className="sm:hidden">SW</span>
+							</button>
+
+							<button
+								onClick={() => {
+									if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
+										alert("Service Worker not active. Please refresh the page.");
+										return;
+									}
+
+									if (Notification.permission !== "granted") {
+										Notification.requestPermission().then((permission) => {
+											if (permission === "granted" && navigator.serviceWorker.controller) {
+												navigator.serviceWorker.controller.postMessage({ type: "CHECK_NOW" });
+												console.log("� Real position check triggered");
+												alert("✅ Permission granted! Checking for real position changes...");
+											}
+										});
+									} else {
+										if (navigator.serviceWorker.controller) {
+											navigator.serviceWorker.controller.postMessage({ type: "CHECK_NOW" });
+											console.log("🔄 Real position check triggered");
+											alert(
+												"🔄 Checking positions... If any changes detected, you'll receive a notification."
+											);
+										}
+									}
+								}}
+								className="px-3 md:px-4 py-1.5 md:py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+								title="Check for real position changes"
+							>
+								<span>�</span>
+								<span className="hidden sm:inline">Check Positions</span>
+								<span className="sm:hidden">Check</span>
+							</button>
+						</div>
 					</div>
 				</div>
 

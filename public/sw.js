@@ -346,10 +346,42 @@ self.addEventListener('message', (event) => {
 		event.waitUntil(checkPositionChanges());
 	}
 	
+	if (event.data.type === 'TEST_NOTIFICATION') {
+		// Send a test notification immediately
+		event.waitUntil(
+			sendTestNotification(event.data.testType || 'opened')
+		);
+	}
+	
 	if (event.data.type === 'SKIP_WAITING') {
 		self.skipWaiting();
 	}
 });
+
+// Send a test notification for demonstration
+async function sendTestNotification(type) {
+	console.log('[Service Worker] Sending test notification:', type);
+	
+	// Create a mock position for testing
+	const mockPosition = {
+		symbol: 'AAPL',
+		qty: '100',
+		avg_entry_price: '150.00',
+		cost_basis: '15000.00',
+		market_value: '15500.00',
+		unrealized_pl: '500.00',
+		unrealized_plpc: '0.0333',
+		current_price: '155.00',
+		side: 'long'
+	};
+	
+	try {
+		await sendNotification(type, mockPosition);
+		console.log('[Service Worker] Test notification sent successfully');
+	} catch (error) {
+		console.error('[Service Worker] Failed to send test notification:', error);
+	}
+}
 
 // Start periodic check (fallback if periodic sync not supported)
 let intervalId = null;

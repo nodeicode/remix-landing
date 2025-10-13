@@ -3,7 +3,7 @@
 
 const CACHE_NAME = 'trading-dashboard-v1';
 const API_ENDPOINT = '/api/positions'; // Use our backend API proxy
-const CHECK_INTERVAL = 30 * 60 * 1000; // 30 minutes in milliseconds
+const CHECK_INTERVAL = 1 * 60 * 1000; // 1 minute in milliseconds
 
 // Cache essential assets
 const ASSETS_TO_CACHE = [
@@ -24,9 +24,17 @@ self.addEventListener('install', (event) => {
 	self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches and start periodic sync
+let intervalId = null;
+
 self.addEventListener('activate', (event) => {
 	console.log('[Service Worker] Activating...');
+	
+	// Clear any existing interval
+	if (intervalId) {
+		clearInterval(intervalId);
+	}
+	
 	event.waitUntil(
 		caches.keys().then((cacheNames) => {
 			return Promise.all(
@@ -37,8 +45,19 @@ self.addEventListener('activate', (event) => {
 					}
 				})
 			);
+		}).then(() => {
+			console.log('[Service Worker] Starting periodic position checks every', CHECK_INTERVAL / 1000, 'seconds');
+			// Start checking positions periodically
+			intervalId = setInterval(() => {
+				console.log('[Service Worker] Periodic check triggered');
+				checkPositionChanges();
+			}, CHECK_INTERVAL);
+			
+			// Do an immediate check on activation
+			checkPositionChanges();
 		})
 	);
+	
 	self.clients.claim();
 });
 
@@ -171,7 +190,20 @@ function comparePositions(oldPositions, newPositions) {
 
 // Send push notification with detailed trade information
 async function sendNotification(type, position) {
+	console.log('[Service Worker] 🔔 sendNotification START:', { type, symbol: position.symbol });
+	
 	try {
+		// First, verify we have a valid registration
+		if (!self.registration) {
+			console.error('[Service Worker] ❌ No registration available!');
+			return;
+		}
+		
+		console.log('[Service Worker] Registration valid:', {
+			scope: self.registration.scope,
+			active: !!self.registration.active,
+		});
+		
 		const ticker = getUnderlyingTicker(position.symbol);
 		const qty = Math.abs(parseFloat(position.qty));
 		
@@ -203,12 +235,13 @@ async function sendNotification(type, position) {
 			badge = '/icon-192.png';
 		}
 		
-		await self.registration.showNotification(title, {
+		const notificationOptions = {
 			body,
 			icon,
 			badge,
 			tag: `${type}-${position.symbol}-${Date.now()}`,
 			requireInteraction: false,
+			silent: false, // Make sure it's not silent
 			vibrate: [200, 100, 200],
 			data: {
 				type,
@@ -222,12 +255,35 @@ async function sendNotification(type, position) {
 					title: '👁️ View Dashboard',
 				},
 			],
+		};
+		
+		console.log('[Service Worker] 📤 About to call showNotification with:', { 
+			title, 
+			bodyPreview: body.substring(0, 50) + '...',
+			tag: notificationOptions.tag,
 		});
 		
-		console.log('[Service Worker] Notification sent:', title);
+		const notificationPromise = self.registration.showNotification(title, notificationOptions);
+		console.log('[Service Worker] showNotification called, waiting for promise...');
+		
+		await notificationPromise;
+		
+		console.log('[Service Worker] ✅ showNotification promise resolved! Notification should be visible now.');
 	} catch (error) {
-		console.error('[Service Worker] Error sending notification:', error);
+		console.error('[Service Worker] ❌ NOTIFICATION FAILED!');
+		console.error('[Service Worker] Error type:', error.constructor.name);
+		console.error('[Service Worker] Error message:', error.message);
+		console.error('[Service Worker] Error stack:', error.stack);
+		
+		// Try to get more details about why it failed
+		if (error.name === 'TypeError') {
+			console.error('[Service Worker] TypeError - possibly invalid notification options');
+		} else if (error.name === 'SecurityError') {
+			console.error('[Service Worker] SecurityError - permission or origin issue');
+		}
 	}
+	
+	console.log('[Service Worker] 🔔 sendNotification END:', { type, symbol: position.symbol });
 }
 
 // Extract underlying ticker from option symbols
@@ -238,11 +294,28 @@ function getUnderlyingTicker(symbol) {
 
 // Check for position changes
 async function checkPositionChanges() {
-	console.log('[Service Worker] Checking for position changes...');
+	const now = new Date().toLocaleTimeString();
+	console.log(`[Service Worker] ${now} - Checking for position changes...`);
+	
+	// Notify clients that sync is starting
+	let clients = await self.clients.matchAll();
+	clients.forEach(client => {
+		client.postMessage({
+			type: 'SYNC_STARTED',
+			timestamp: Date.now(),
+		});
+	});
 	
 	const currentPositions = await fetchPositions();
 	if (!currentPositions) {
 		console.log('[Service Worker] No positions fetched, skipping check');
+		// Notify clients that sync failed
+		clients.forEach(client => {
+			client.postMessage({
+				type: 'SYNC_FAILED',
+				timestamp: Date.now(),
+			});
+		});
 		return;
 	}
 
@@ -252,37 +325,65 @@ async function checkPositionChanges() {
 	if (storedPositions.length === 0) {
 		console.log('[Service Worker] First check, storing initial positions');
 		await storePositions(currentPositions);
+		// Notify clients that sync completed
+		clients.forEach(client => {
+			client.postMessage({
+				type: 'SYNC_COMPLETED',
+				hasChanges: false,
+				timestamp: Date.now(),
+			});
+		});
 		return;
 	}
 	
 	const changes = comparePositions(storedPositions, currentPositions);
 
-	console.log('[Service Worker] Position changes:', {
+	console.log('[Service Worker] Position changes detected:', {
 		opened: changes.opened.length,
-		closed: changes.closed.length
+		closed: changes.closed.length,
+		total: currentPositions.length,
+		openedSymbols: changes.opened.map(p => p.symbol),
+		closedSymbols: changes.closed.map(p => p.symbol),
 	});
+
+	// Check notification permission before sending
+	if (changes.opened.length > 0 || changes.closed.length > 0) {
+		console.log('[Service Worker] Changes detected! Preparing to send notifications...');
+		console.log('[Service Worker] Number of notifications to send:', 
+			changes.opened.length + changes.closed.length);
+		
+		// Get all clients to check notification permission from page context
+		const clientList = await self.clients.matchAll();
+		if (clientList.length > 0) {
+			console.log('[Service Worker] Active clients found:', clientList.length);
+		} else {
+			console.warn('[Service Worker] No active clients found - notifications may not work!');
+		}
+	}
 
 	// Send notifications for opened positions
 	for (const position of changes.opened) {
+		console.log('[Service Worker] 📢 Attempting to send OPENED notification for:', position.symbol);
 		await sendNotification('opened', position);
 	}
 
 	// Send notifications for closed positions
 	for (const position of changes.closed) {
+		console.log('[Service Worker] 📢 Attempting to send CLOSED notification for:', position.symbol);
 		await sendNotification('closed', position);
 	}
 
-	// Store current positions for next comparison
-	if (changes.opened.length > 0 || changes.closed.length > 0) {
-		await storePositions(currentPositions);
-	}
+	// Always store current positions after comparison
+	// This ensures we have the latest state for next check
+	await storePositions(currentPositions);
 	
 	// Send message to all clients to refresh data
-	const clients = await self.clients.matchAll();
+	clients = await self.clients.matchAll();
 	clients.forEach(client => {
 		client.postMessage({
-			type: 'POSITIONS_UPDATED',
+			type: 'SYNC_COMPLETED',
 			hasChanges: changes.opened.length > 0 || changes.closed.length > 0,
+			timestamp: Date.now(),
 		});
 	});
 }
@@ -382,21 +483,3 @@ async function sendTestNotification(type) {
 		console.error('[Service Worker] Failed to send test notification:', error);
 	}
 }
-
-// Start periodic check (fallback if periodic sync not supported)
-let intervalId = null;
-
-self.addEventListener('activate', (event) => {
-	// Clear any existing interval
-	if (intervalId) {
-		clearInterval(intervalId);
-	}
-	
-	// Start checking every 30 minutes
-	intervalId = setInterval(() => {
-		checkPositionChanges();
-	}, CHECK_INTERVAL);
-	
-	// Do an immediate check
-	checkPositionChanges();
-});

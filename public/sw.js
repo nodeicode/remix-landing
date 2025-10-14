@@ -45,32 +45,17 @@ self.addEventListener('activate', (event) => {
 					}
 				})
 			);
-		}).then(async () => {
-			console.log('[Service Worker] Starting periodic position checks every', CHECK_INTERVAL / 1000, 'seconds');
+		}).then(() => {
+			console.log('[Service Worker] Starting position checks every', CHECK_INTERVAL / 1000, 'seconds');
 			
-			// Try to register Periodic Background Sync (Chrome/Edge only)
-			try {
-				const registration = await self.registration;
-				if ('periodicSync' in registration) {
-					await registration.periodicSync.register('check-positions', {
-						minInterval: CHECK_INTERVAL, // Minimum 1 minute
-					});
-					console.log('[Service Worker] ✅ Periodic Background Sync registered!');
-					console.log('[Service Worker] This will check positions even when app is closed!');
-				} else {
-					console.log('[Service Worker] ⚠️ Periodic Background Sync not supported, using fallback');
-				}
-			} catch (error) {
-				console.log('[Service Worker] ⚠️ Could not register Periodic Background Sync:', error.message);
-			}
-			
-			// Fallback: Start checking positions via setInterval (only works when page is open)
+			// Start checking positions via setInterval
 			intervalId = setInterval(() => {
-				console.log('[Service Worker] Periodic check triggered (setInterval fallback)');
+				console.log('[Service Worker] 🔄 Periodic position check triggered');
 				checkPositionChanges();
 			}, CHECK_INTERVAL);
 			
 			// Do an immediate check on activation
+			console.log('[Service Worker] Running initial position check...');
 			checkPositionChanges();
 		})
 	);
@@ -459,19 +444,12 @@ self.addEventListener('push', (event) => {
 	);
 });
 
-// Periodic background sync (when supported)
-self.addEventListener('periodicsync', (event) => {
-	if (event.tag === 'check-positions') {
-		console.log('[Service Worker] Periodic sync triggered');
-		event.waitUntil(checkPositionChanges());
-	}
-});
-
 // Message handler for communication with clients
 self.addEventListener('message', (event) => {
 	console.log('[Service Worker] Message received:', event.data);
 	
 	if (event.data.type === 'CHECK_NOW') {
+		console.log('[Service Worker] Manual position check requested');
 		event.waitUntil(checkPositionChanges());
 	}
 	

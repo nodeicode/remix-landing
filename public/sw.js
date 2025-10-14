@@ -36,31 +36,40 @@ self.addEventListener('activate', (event) => {
 	}
 	
 	event.waitUntil(
-		caches.keys().then((cacheNames) => {
-			return Promise.all(
-				cacheNames.map((cacheName) => {
-					if (cacheName !== CACHE_NAME) {
-						console.log('[Service Worker] Deleting old cache:', cacheName);
-						return caches.delete(cacheName);
-					}
-				})
-			);
-		}).then(() => {
-			console.log('[Service Worker] Starting position checks every', CHECK_INTERVAL / 1000, 'seconds');
-			
-			// Start checking positions via setInterval
-			intervalId = setInterval(() => {
-				console.log('[Service Worker] 🔄 Periodic position check triggered');
-				checkPositionChanges();
-			}, CHECK_INTERVAL);
-			
-			// Do an immediate check on activation
-			console.log('[Service Worker] Running initial position check...');
-			checkPositionChanges();
-		})
+		caches.keys()
+			.then((cacheNames) => {
+				return Promise.all(
+					cacheNames.map((cacheName) => {
+						if (cacheName !== CACHE_NAME) {
+							console.log('[Service Worker] Deleting old cache:', cacheName);
+							return caches.delete(cacheName);
+						}
+					})
+				);
+			})
+			.then(() => {
+				console.log('[Service Worker] Cache cleanup complete');
+				console.log('[Service Worker] Starting position checks every', CHECK_INTERVAL / 1000, 'seconds');
+				
+				// Start checking positions via setInterval
+				intervalId = setInterval(() => {
+					console.log('[Service Worker] 🔄 Periodic position check triggered');
+					checkPositionChanges();
+				}, CHECK_INTERVAL);
+				
+				// Do an immediate check on activation
+				console.log('[Service Worker] Running initial position check...');
+				return checkPositionChanges();
+			})
+			.then(() => {
+				console.log('[Service Worker] ✅ Service Worker activated and position checks started');
+			})
+			.catch((error) => {
+				console.error('[Service Worker] ❌ Error during activation:', error);
+			})
 	);
 	
-	self.clients.claim();
+	return self.clients.claim();
 });
 
 // Fetch event - network first, fallback to cache

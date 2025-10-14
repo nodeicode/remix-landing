@@ -223,13 +223,19 @@ export default function Dashboard() {
 					}
 
 					// Listen for messages from service worker
-					navigator.serviceWorker.addEventListener("message", (event) => {
+					const handleMessage = (event: MessageEvent) => {
 						console.log("[Dashboard] Service worker message:", event.data);
 
 						// Revalidate data when sync completes with changes
 						if (event.data.type === "SYNC_COMPLETED" && event.data.hasChanges) {
-							console.log("[Dashboard] Position changes detected, revalidating data...");
+							console.log("[Dashboard] 🔄 Position changes detected!");
+							console.log("[Dashboard] Revalidator state before:", revalidator.state);
 							revalidator.revalidate();
+							console.log("[Dashboard] ✅ Revalidation triggered");
+							// Log state after a short delay
+							setTimeout(() => {
+								console.log("[Dashboard] Revalidator state after:", revalidator.state);
+							}, 100);
 						}
 
 						// Legacy support for old message type
@@ -237,7 +243,14 @@ export default function Dashboard() {
 							console.log("[Dashboard] Positions updated (legacy), revalidating data...");
 							revalidator.revalidate();
 						}
-					});
+					};
+
+					navigator.serviceWorker.addEventListener("message", handleMessage);
+
+					// Cleanup listener on unmount
+					return () => {
+						navigator.serviceWorker.removeEventListener("message", handleMessage);
+					};
 				})
 				.catch((error) => {
 					console.error("Service Worker registration failed:", error);

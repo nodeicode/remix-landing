@@ -63,14 +63,25 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - network first, fallback to cache
 self.addEventListener('fetch', (event) => {
+	// Skip caching for non-GET requests (HEAD, POST, etc.)
+	if (event.request.method !== 'GET') {
+		event.respondWith(fetch(event.request));
+		return;
+	}
+
 	event.respondWith(
 		fetch(event.request)
 			.then((response) => {
-				// Clone the response before caching
-				const responseToCache = response.clone();
-				caches.open(CACHE_NAME).then((cache) => {
-					cache.put(event.request, responseToCache);
-				});
+				// Only cache successful GET responses
+				if (response && response.status === 200) {
+					const responseToCache = response.clone();
+					caches.open(CACHE_NAME).then((cache) => {
+						cache.put(event.request, responseToCache).catch((err) => {
+							// Silently ignore cache errors
+							console.debug('[Service Worker] Cache put failed:', err.message);
+						});
+					});
+				}
 				return response;
 			})
 			.catch(() => {

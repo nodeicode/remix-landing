@@ -45,11 +45,28 @@ self.addEventListener('activate', (event) => {
 					}
 				})
 			);
-		}).then(() => {
+		}).then(async () => {
 			console.log('[Service Worker] Starting periodic position checks every', CHECK_INTERVAL / 1000, 'seconds');
-			// Start checking positions periodically
+			
+			// Try to register Periodic Background Sync (Chrome/Edge only)
+			try {
+				const registration = await self.registration;
+				if ('periodicSync' in registration) {
+					await registration.periodicSync.register('check-positions', {
+						minInterval: CHECK_INTERVAL, // Minimum 1 minute
+					});
+					console.log('[Service Worker] ✅ Periodic Background Sync registered!');
+					console.log('[Service Worker] This will check positions even when app is closed!');
+				} else {
+					console.log('[Service Worker] ⚠️ Periodic Background Sync not supported, using fallback');
+				}
+			} catch (error) {
+				console.log('[Service Worker] ⚠️ Could not register Periodic Background Sync:', error.message);
+			}
+			
+			// Fallback: Start checking positions via setInterval (only works when page is open)
 			intervalId = setInterval(() => {
-				console.log('[Service Worker] Periodic check triggered');
+				console.log('[Service Worker] Periodic check triggered (setInterval fallback)');
 				checkPositionChanges();
 			}, CHECK_INTERVAL);
 			

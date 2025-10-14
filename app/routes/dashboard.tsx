@@ -190,7 +190,7 @@ export default function Dashboard() {
 		if ("serviceWorker" in navigator) {
 			navigator.serviceWorker
 				.register("/sw.js")
-				.then((registration) => {
+				.then(async (registration) => {
 					console.log("Service Worker registered:", registration);
 
 					// Request notification permission
@@ -198,6 +198,28 @@ export default function Dashboard() {
 						Notification.requestPermission().then((permission) => {
 							console.log("Notification permission:", permission);
 						});
+					}
+
+					// Request Periodic Background Sync permission (Chrome/Edge)
+					if ("periodicSync" in registration) {
+						try {
+							const status = await navigator.permissions.query({
+								name: "periodic-background-sync" as PermissionName,
+							});
+							console.log("[Dashboard] Periodic Background Sync permission:", status.state);
+							if (status.state === "granted") {
+								console.log("✅ App will check for position changes even when closed!");
+							} else {
+								console.log(
+									"⚠️ Periodic Background Sync not granted - will only check when app is open"
+								);
+							}
+						} catch (error) {
+							console.log("[Dashboard] Could not query periodic sync permission:", error);
+						}
+					} else {
+						console.log("⚠️ Periodic Background Sync not supported in this browser");
+						console.log("💡 Position checks will only work when the app is open");
 					}
 
 					// Listen for messages from service worker
@@ -221,7 +243,7 @@ export default function Dashboard() {
 					console.error("Service Worker registration failed:", error);
 				});
 		}
-	}, []);
+	}, [revalidator]);
 
 	// Helper function to extract underlying ticker from option symbols
 	// Option format: AAPL250117C00150000 -> AAPL

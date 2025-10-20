@@ -24,16 +24,9 @@ self.addEventListener('install', (event) => {
 	self.skipWaiting();
 });
 
-// Activate event - clean up old caches and start periodic sync
-let intervalId = null;
-
+// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
 	console.log('[Service Worker] Activating...');
-	
-	// Clear any existing interval
-	if (intervalId) {
-		clearInterval(intervalId);
-	}
 	
 	event.waitUntil(
 		caches.keys()
@@ -48,21 +41,7 @@ self.addEventListener('activate', (event) => {
 				);
 			})
 			.then(() => {
-				console.log('[Service Worker] Cache cleanup complete');
-				console.log('[Service Worker] Starting position checks every', CHECK_INTERVAL / 1000, 'seconds');
-				
-				// Start checking positions via setInterval
-				intervalId = setInterval(() => {
-					console.log('[Service Worker] 🔄 Periodic position check triggered');
-					checkPositionChanges();
-				}, CHECK_INTERVAL);
-				
-				// Do an immediate check on activation
-				console.log('[Service Worker] Running initial position check...');
-				return checkPositionChanges();
-			})
-			.then(() => {
-				console.log('[Service Worker] ✅ Service Worker activated and position checks started');
+				console.log('[Service Worker] ✅ Service Worker activated and cache cleaned');
 			})
 			.catch((error) => {
 				console.error('[Service Worker] ❌ Error during activation:', error);
@@ -71,6 +50,26 @@ self.addEventListener('activate', (event) => {
 	
 	return self.clients.claim();
 });
+
+// Start position checks immediately when service worker loads
+// This runs every time the service worker script is evaluated
+let intervalId = null;
+
+console.log('[Service Worker] Script loaded, starting position monitoring...');
+console.log('[Service Worker] Starting position checks every', CHECK_INTERVAL / 1000, 'seconds');
+
+// Clear any existing interval (in case of reload)
+if (intervalId) {
+	clearInterval(intervalId);
+}
+
+// Start checking positions via setInterval
+intervalId = setInterval(() => {
+	console.log('[Service Worker] 🔄 Periodic position check triggered');
+	checkPositionChanges();
+}, CHECK_INTERVAL);
+
+console.log('[Service Worker] ✅ Position monitoring started - interval ID:', intervalId);
 
 // Fetch event - network first, fallback to cache
 self.addEventListener('fetch', (event) => {

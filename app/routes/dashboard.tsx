@@ -188,6 +188,8 @@ export default function Dashboard() {
 	// Register service worker for PWA
 	useEffect(() => {
 		if ("serviceWorker" in navigator) {
+			let checkInterval: NodeJS.Timeout | null = null;
+
 			navigator.serviceWorker
 				.register("/sw.js")
 				.then((registration) => {
@@ -227,9 +229,41 @@ export default function Dashboard() {
 
 					navigator.serviceWorker.addEventListener("message", handleMessage);
 
-					// Cleanup listener on unmount
+					// Set up interval to trigger position checks from the page
+					// This is more reliable than service worker's setInterval which can sleep
+					const CHECK_INTERVAL = 60 * 1000; // 1 minute
+					console.log("[Dashboard] 🔄 Setting up position check interval (60 seconds)");
+
+					const triggerPositionCheck = () => {
+						if (navigator.serviceWorker.controller) {
+							console.log("[Dashboard] ⏰ Triggering periodic position check...");
+							navigator.serviceWorker.controller.postMessage({
+								type: "CHECK_NOW",
+							});
+						} else {
+							console.warn("[Dashboard] ⚠️ No service worker controller available");
+						}
+					};
+
+					// Run immediate check
+					triggerPositionCheck();
+
+					// Set up periodic checks
+					checkInterval = setInterval(triggerPositionCheck, CHECK_INTERVAL);
+					console.log(
+						"[Dashboard] ✅ Position check interval started (ID:",
+						checkInterval,
+						")"
+					);
+
+					// Cleanup listener and interval on unmount
 					return () => {
+						console.log("[Dashboard] 🧹 Cleaning up service worker listeners and interval");
 						navigator.serviceWorker.removeEventListener("message", handleMessage);
+						if (checkInterval) {
+							clearInterval(checkInterval);
+							console.log("[Dashboard] ✅ Position check interval cleared");
+						}
 					};
 				})
 				.catch((error) => {

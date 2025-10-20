@@ -51,25 +51,8 @@ self.addEventListener('activate', (event) => {
 	return self.clients.claim();
 });
 
-// Start position checks immediately when service worker loads
-// This runs every time the service worker script is evaluated
-let intervalId = null;
-
-console.log('[Service Worker] Script loaded, starting position monitoring...');
-console.log('[Service Worker] Starting position checks every', CHECK_INTERVAL / 1000, 'seconds');
-
-// Clear any existing interval (in case of reload)
-if (intervalId) {
-	clearInterval(intervalId);
-}
-
-// Start checking positions via setInterval
-intervalId = setInterval(() => {
-	console.log('[Service Worker] 🔄 Periodic position check triggered');
-	checkPositionChanges();
-}, CHECK_INTERVAL);
-
-console.log('[Service Worker] ✅ Position monitoring started - interval ID:', intervalId);
+console.log('[Service Worker] ✅ Service worker loaded and ready');
+console.log('[Service Worker] � Position checks will be triggered by the dashboard page every 60 seconds');
 
 // Fetch event - network first for API, cache for static assets
 self.addEventListener('fetch', (event) => {
@@ -362,10 +345,18 @@ async function checkPositionChanges() {
 
 	const storedPositions = await getStoredPositions();
 	
+	console.log('[Service Worker] 📊 Comparison data:', {
+		stored: storedPositions.length,
+		current: currentPositions.length,
+		storedSymbols: storedPositions.map(p => p.symbol),
+		currentSymbols: currentPositions.map(p => p.symbol),
+	});
+	
 	// If this is the first check, just store the positions without sending notifications
 	if (storedPositions.length === 0) {
 		console.log('[Service Worker] First check, storing initial positions');
 		await storePositions(currentPositions);
+		console.log('[Service Worker] ✅ Initial positions stored in IndexedDB');
 		// Notify clients that sync completed
 		clients.forEach(client => {
 			client.postMessage({
@@ -379,7 +370,7 @@ async function checkPositionChanges() {
 	
 	const changes = comparePositions(storedPositions, currentPositions);
 
-	console.log('[Service Worker] Position changes detected:', {
+	console.log('[Service Worker] 🔍 Position changes detected:', {
 		opened: changes.opened.length,
 		closed: changes.closed.length,
 		total: currentPositions.length,
@@ -403,15 +394,21 @@ async function checkPositionChanges() {
 	}
 
 	// Send notifications for opened positions
-	for (const position of changes.opened) {
-		console.log('[Service Worker] 📢 Attempting to send OPENED notification for:', position.symbol);
-		await sendNotification('opened', position);
+	if (changes.opened.length > 0) {
+		console.log('[Service Worker] 🔔 Preparing to send', changes.opened.length, 'OPENED notification(s)');
+		for (const position of changes.opened) {
+			console.log('[Service Worker] 📢 Sending OPENED notification for:', position.symbol);
+			await sendNotification('opened', position);
+		}
 	}
 
 	// Send notifications for closed positions
-	for (const position of changes.closed) {
-		console.log('[Service Worker] 📢 Attempting to send CLOSED notification for:', position.symbol);
-		await sendNotification('closed', position);
+	if (changes.closed.length > 0) {
+		console.log('[Service Worker] 🔔 Preparing to send', changes.closed.length, 'CLOSED notification(s)');
+		for (const position of changes.closed) {
+			console.log('[Service Worker] 📢 Sending CLOSED notification for:', position.symbol);
+			await sendNotification('closed', position);
+		}
 	}
 
 	// Always store current positions after comparison

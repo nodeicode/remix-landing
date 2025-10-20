@@ -71,18 +71,32 @@ intervalId = setInterval(() => {
 
 console.log('[Service Worker] ✅ Position monitoring started - interval ID:', intervalId);
 
-// Fetch event - network first, fallback to cache
+// Fetch event - network first for API, cache for static assets
 self.addEventListener('fetch', (event) => {
+	const url = new URL(event.request.url);
+	
 	// Skip caching for non-GET requests (HEAD, POST, etc.)
 	if (event.request.method !== 'GET') {
 		event.respondWith(fetch(event.request));
 		return;
 	}
 
+	// Never cache API requests - always fetch fresh data
+	if (url.pathname.startsWith('/api/')) {
+		console.log('[Service Worker] API request - bypassing cache:', url.pathname);
+		event.respondWith(
+			fetch(event.request, {
+				cache: 'no-store', // Force fresh fetch, bypass HTTP cache
+			})
+		);
+		return;
+	}
+
+	// For static assets, use cache-first strategy
 	event.respondWith(
 		fetch(event.request)
 			.then((response) => {
-				// Only cache successful GET responses
+				// Only cache successful GET responses for non-API requests
 				if (response && response.status === 200) {
 					const responseToCache = response.clone();
 					caches.open(CACHE_NAME).then((cache) => {
@@ -158,12 +172,16 @@ async function storePositions(positions) {
 // Fetch current positions from Alpaca API via our backend
 async function fetchPositions() {
 	try {
+		console.log('[Service Worker] 📡 Fetching fresh positions from:', API_ENDPOINT);
+		
 		// Use our secure backend API endpoint instead of direct Alpaca API
-		const apiResponse = await fetch(API_ENDPOINT, {
+		// Force fresh fetch by adding cache: 'no-store' and timestamp
+		const apiResponse = await fetch(`${API_ENDPOINT}?t=${Date.now()}`, {
 			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json',
 			},
+			cache: 'no-store', // Bypass cache
 		});
 
 		if (!apiResponse.ok) {
@@ -174,10 +192,11 @@ async function fetchPositions() {
 		}
 
 		const positions = await apiResponse.json();
-		console.log('[Service Worker] Fetched positions:', positions.length);
+		console.log('[Service Worker] ✅ Fetched fresh positions:', positions.length);
+		console.log('[Service Worker] Position symbols:', positions.map(p => p.symbol));
 		return positions;
 	} catch (error) {
-		console.error('[Service Worker] Error fetching positions:', error);
+		console.error('[Service Worker] ❌ Error fetching positions:', error);
 		return null;
 	}
 }
@@ -284,7 +303,8 @@ async function sendNotification(type, position) {
 			tag: notificationOptions.tag,
 		});
 		
-		const notificationPromise = self.registration.showNotification(title, notificationOptions);
+		const notificationPromise = self.
+		ration.showNotification(title, notificationOptions);
 		console.log('[Service Worker] showNotification called, waiting for promise...');
 		
 		await notificationPromise;

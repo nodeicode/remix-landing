@@ -3,7 +3,7 @@
 
 const CACHE_NAME = 'trading-dashboard-v1';
 const API_ENDPOINT = '/api/positions'; // Use our backend API proxy
-const CHECK_INTERVAL = 1 * 60 * 1000; // 1 minute in milliseconds
+const CHECK_INTERVAL = 30 * 1000; // 30 seconds in milliseconds
 
 // Cache essential assets
 const ASSETS_TO_CACHE = [
@@ -52,7 +52,7 @@ self.addEventListener('activate', (event) => {
 });
 
 console.log('[Service Worker] ✅ Service worker loaded and ready');
-console.log('[Service Worker] � Position checks will be triggered by the dashboard page every 60 seconds');
+console.log('[Service Worker] Position checks will be triggered by the dashboard page every 30 seconds');
 
 // Fetch event - network first for API, cache for static assets
 self.addEventListener('fetch', (event) => {
@@ -348,13 +348,23 @@ async function checkPositionChanges() {
 	console.log('[Service Worker] 📊 Comparison data:', {
 		stored: storedPositions.length,
 		current: currentPositions.length,
-		storedSymbols: storedPositions.map(p => p.symbol),
-		currentSymbols: currentPositions.map(p => p.symbol),
+		storedSymbols: storedPositions.map(p => p.symbol).sort(),
+		currentSymbols: currentPositions.map(p => p.symbol).sort(),
 	});
+	
+	// Log detailed position data for debugging
+	if (storedPositions.length !== currentPositions.length) {
+		console.log('[Service Worker] ⚠️ Position count changed!', {
+			before: storedPositions.length,
+			after: currentPositions.length,
+			difference: currentPositions.length - storedPositions.length,
+		});
+	}
 	
 	// If this is the first check, just store the positions without sending notifications
 	if (storedPositions.length === 0) {
 		console.log('[Service Worker] First check, storing initial positions');
+		console.log('[Service Worker] Initial position symbols:', currentPositions.map(p => p.symbol));
 		await storePositions(currentPositions);
 		console.log('[Service Worker] ✅ Initial positions stored in IndexedDB');
 		// Notify clients that sync completed
@@ -413,17 +423,27 @@ async function checkPositionChanges() {
 
 	// Always store current positions after comparison
 	// This ensures we have the latest state for next check
+	console.log('[Service Worker] 💾 Storing current positions in IndexedDB...');
 	await storePositions(currentPositions);
+	console.log('[Service Worker] ✅ Positions stored. Next check will compare against:', currentPositions.map(p => p.symbol).sort());
 	
 	// Send message to all clients to refresh data
 	clients = await self.clients.matchAll();
+	const hasChanges = changes.opened.length > 0 || changes.closed.length > 0;
+	console.log('[Service Worker] 📤 Sending SYNC_COMPLETED message to clients:', {
+		hasChanges,
+		clientCount: clients.length,
+	});
+	
 	clients.forEach(client => {
 		client.postMessage({
 			type: 'SYNC_COMPLETED',
-			hasChanges: changes.opened.length > 0 || changes.closed.length > 0,
+			hasChanges,
 			timestamp: Date.now(),
 		});
 	});
+	
+	console.log('[Service Worker] ✅ Position check complete');
 }
 
 // Handle notification clicks

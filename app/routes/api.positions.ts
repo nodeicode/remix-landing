@@ -27,12 +27,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	};
 
 	try {
-		// Fetch current positions from Alpaca
-		const positionsResponse = await fetch(`${ALPACA_BASE_URL}/v2/positions`, { headers });
+		const requestTime = new Date().toISOString();
+		console.log(`[API /api/positions] ${requestTime} - Fetching positions from Alpaca...`);
+		
+		// Fetch current positions from Alpaca with cache busting
+		const positionsResponse = await fetch(`${ALPACA_BASE_URL}/v2/positions`, { 
+			headers,
+			cache: 'no-store', // Force fresh fetch
+		});
 		
 		if (!positionsResponse.ok) {
 			const errorText = await positionsResponse.text();
-			console.error("Failed to fetch positions:", positionsResponse.status, errorText);
+			console.error("[API /api/positions] Failed to fetch positions:", positionsResponse.status, errorText);
 			
 			return new Response(
 				JSON.stringify({ 
@@ -48,13 +54,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		}
 
 		const positions = await positionsResponse.json();
+		console.log(`[API /api/positions] ✅ Fetched ${positions.length} positions from Alpaca`);
+		console.log(`[API /api/positions] Symbols:`, positions.map((p: any) => p.symbol));
 		
-		// Return positions with CORS headers for service worker
+		// Return positions with aggressive cache prevention headers
 		return new Response(JSON.stringify(positions), {
 			status: 200,
 			headers: {
 				"Content-Type": "application/json",
-				"Cache-Control": "no-cache, no-store, must-revalidate",
+				"Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+				"Pragma": "no-cache",
+				"Expires": "0",
 			},
 		});
 	} catch (error) {

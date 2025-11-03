@@ -2,6 +2,13 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import webpush, { PushSubscription } from "web-push";
 import { getSubscriptions } from "~/routes/api.subscribe";
 
+// Disable caching for this route
+export function headers() {
+  return {
+    "Cache-Control": "no-store, max-age=0",
+  };
+}
+
 // Handle GET requests (Vercel cron uses GET by default)
 export async function loader({ request }: LoaderFunctionArgs) {
   return handleTrigger();
@@ -12,7 +19,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return handleTrigger();
 }
 
-// Disable caching for this route
+// Disable caching for this route - for Vercel edge
 export const config = {
   runtime: 'nodejs',
   maxDuration: 10,

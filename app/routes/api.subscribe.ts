@@ -4,6 +4,13 @@ import { Redis } from "@upstash/redis";
 const redis = Redis.fromEnv();
 
 // Disable caching for this route
+export function headers() {
+  return {
+    "Cache-Control": "no-store, max-age=0",
+  };
+}
+
+// Disable caching for this route - for Vercel edge
 export const config = {
   runtime: 'nodejs',
   maxDuration: 10,

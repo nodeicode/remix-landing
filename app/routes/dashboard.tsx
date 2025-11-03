@@ -239,24 +239,6 @@ export default function Dashboard() {
 							} else {
 								console.log("[Dashboard] ✅ Already subscribed to push notifications");
 							}
-
-							// Always send/update subscription to server
-							if (subscription) {
-								const response = await fetch("/api/subscribe", {
-									method: "POST",
-									headers: { "Content-Type": "application/json" },
-									body: JSON.stringify(subscription.toJSON()),
-								});
-
-								if (response.ok) {
-									console.log("[Dashboard] ✅ Subscription sent to server");
-								} else {
-									console.error(
-										"[Dashboard] ❌ Failed to send subscription to server:",
-										response.status
-									);
-								}
-							}
 						} catch (error) {
 							console.error(
 								"[Dashboard] ❌ Failed to subscribe to push notifications:",

@@ -37,9 +37,15 @@ export function NotificationPermission() {
 		}
 	};
 
-	// Don't render anything during SSR
+	// Render placeholder during SSR to avoid hydration mismatch
 	if (!isClient) {
-		return null;
+		return (
+			<div className="flex items-center gap-2">
+				<div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+					<span className="text-gray-400 dark:text-gray-500 text-sm">🔔 Loading...</span>
+				</div>
+			</div>
+		);
 	}
 
 	if (typeof window === "undefined" || !("Notification" in window)) {

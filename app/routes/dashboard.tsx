@@ -236,6 +236,25 @@ export default function Dashboard() {
 								});
 
 								console.log("[Dashboard] ✅ Subscribed to push notifications");
+
+								// Send new subscription to server
+								console.log("[Dashboard] 📤 Sending new subscription to server...");
+								const response = await fetch("/api/subscribe", {
+									method: "POST",
+									headers: { "Content-Type": "application/json" },
+									body: JSON.stringify(subscription.toJSON()),
+								});
+
+								if (response.ok) {
+									console.log("[Dashboard] ✅ Subscription saved to database");
+								} else {
+									const errorText = await response.text();
+									console.error(
+										"[Dashboard] ❌ Failed to save subscription:",
+										response.status,
+										errorText
+									);
+								}
 							} else {
 								console.log("[Dashboard] ✅ Already subscribed to push notifications");
 							}

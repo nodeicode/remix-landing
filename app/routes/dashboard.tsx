@@ -185,6 +185,33 @@ export default function Dashboard() {
 		key: string;
 		direction: "asc" | "desc";
 	} | null>(null);
+	const [isSendingTest, setIsSendingTest] = useState(false);
+
+	// Send test notification
+	const sendTestNotification = async () => {
+		setIsSendingTest(true);
+		try {
+			const response = await fetch("/api/test-notification", {
+				method: "POST",
+			});
+
+			const data = await response.json();
+
+			if (response.ok && data.success) {
+				console.log(
+					"[Dashboard] ✅ Test notification sent:",
+					data.details.successful,
+					"successful"
+				);
+			} else {
+				console.error("[Dashboard] ❌ Failed to send test notification:", data);
+			}
+		} catch (error) {
+			console.error("[Dashboard] ❌ Error sending test notification:", error);
+		} finally {
+			setIsSendingTest(false);
+		}
+	};
 
 	// Register service worker and subscribe to push notifications
 	useEffect(() => {
@@ -639,6 +666,24 @@ export default function Dashboard() {
 						{/* Status Indicators */}
 						<div className="flex items-center gap-2 flex-wrap">
 							<NotificationPermission />
+							<button
+								onClick={sendTestNotification}
+								disabled={isSendingTest}
+								className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white text-sm font-medium rounded-lg transition-colors"
+								title="Send test notification to all subscribed devices"
+							>
+								{isSendingTest ? (
+									<>
+										<span className="animate-spin">⏳</span>
+										<span className="hidden md:inline">Sending...</span>
+									</>
+								) : (
+									<>
+										<span>🧪</span>
+										<span className="hidden md:inline">Test Notification</span>
+									</>
+								)}
+							</button>
 							<SyncStatus className="px-3 md:px-4 py-1.5 md:py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700" />
 						</div>
 					</div>

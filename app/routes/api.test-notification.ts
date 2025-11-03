@@ -7,6 +7,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return handleTestNotification();
 }
 
+// Disable caching for this route
+export const config = {
+	runtime: 'nodejs',
+	maxDuration: 10,
+};
+
 // Handle POST requests - send test notification
 export async function action({ request }: ActionFunctionArgs) {
 	return handleTestNotification();
@@ -18,14 +24,10 @@ async function handleTestNotification() {
 	const subscriptions = await getSubscriptions();
 	console.log("[Test Notification] Found", subscriptions.length, "subscriptions");
 
-	// Disable caching
-	const noCacheHeaders = {
+	const headers = {
 		"Content-Type": "application/json",
-		"Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-		"CDN-Cache-Control": "no-store",
-		"Vercel-CDN-Cache-Control": "no-store",
-		"Pragma": "no-cache",
-		"Expires": "0",
+		"Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
+		"Vercel-CDN-Cache-Control": "max-age=0",
 	};
 
 	if (subscriptions.length === 0) {
@@ -37,7 +39,7 @@ async function handleTestNotification() {
 			}),
 			{
 				status: 200,
-				headers: noCacheHeaders,
+				headers,
 			}
 		);
 	}
@@ -50,7 +52,7 @@ async function handleTestNotification() {
 			}),
 			{
 				status: 500,
-				headers: noCacheHeaders,
+				headers,
 			}
 		);
 	}
@@ -97,7 +99,7 @@ async function handleTestNotification() {
 			}),
 			{
 				status: 200,
-				headers: noCacheHeaders,
+				headers,
 			}
 		);
 	} catch (error) {
@@ -109,7 +111,7 @@ async function handleTestNotification() {
 			}),
 			{
 				status: 500,
-				headers: noCacheHeaders,
+				headers,
 			}
 		);
 	}

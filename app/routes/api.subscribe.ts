@@ -3,23 +3,25 @@ import { Redis } from "@upstash/redis";
 
 const redis = Redis.fromEnv();
 
+// Disable caching for this route
+export const config = {
+  runtime: 'nodejs',
+  maxDuration: 10,
+};
+
 export async function action({ request }: ActionFunctionArgs) {
   console.log("[Subscribe] Received request:", request.method);
   
-  // Disable caching
-  const noCacheHeaders = {
+  const headers = {
     "Content-Type": "application/json",
-    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-    "CDN-Cache-Control": "no-store",
-    "Vercel-CDN-Cache-Control": "no-store",
-    "Pragma": "no-cache",
-    "Expires": "0",
+    "Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
+    "Vercel-CDN-Cache-Control": "max-age=0",
   };
   
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ message: "Method not allowed" }), {
       status: 405,
-      headers: noCacheHeaders,
+      headers,
     });
   }
 
@@ -41,7 +43,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: noCacheHeaders,
+      headers,
     });
   } catch (error) {
     console.error("[Subscribe] ❌ Error saving subscription:", error);
@@ -50,7 +52,7 @@ export async function action({ request }: ActionFunctionArgs) {
       details: error instanceof Error ? error.message : String(error)
     }), {
       status: 500,
-      headers: noCacheHeaders,
+      headers,
     });
   }
 }

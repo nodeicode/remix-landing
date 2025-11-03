@@ -3,8 +3,12 @@ import { useState, useEffect } from "react";
 export function NotificationPermission() {
 	const [permission, setPermission] = useState<NotificationPermission>("default");
 	const [isRequesting, setIsRequesting] = useState(false);
+	const [isClient, setIsClient] = useState(false);
 
 	useEffect(() => {
+		// Only run on client side
+		setIsClient(true);
+
 		if ("Notification" in window) {
 			setPermission(Notification.permission);
 		}
@@ -33,10 +37,14 @@ export function NotificationPermission() {
 		}
 	};
 
-	if (!("Notification" in window)) {
+	// Don't render anything during SSR
+	if (!isClient) {
 		return null;
 	}
 
+	if (typeof window === "undefined" || !("Notification" in window)) {
+		return null;
+	}
 	return (
 		<div className="flex items-center gap-2">
 			{permission === "granted" ? (

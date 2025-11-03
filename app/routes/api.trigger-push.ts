@@ -13,10 +13,13 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 async function handleTrigger() {
-
+  console.log("[Trigger Push] Starting...");
+  
   const subscriptions = await getSubscriptions();
+  console.log("[Trigger Push] Found", subscriptions.length, "subscriptions");
 
   if (subscriptions.length === 0) {
+    console.log("[Trigger Push] No subscribers to notify");
     return new Response(JSON.stringify({ success: true, message: "No subscribers to notify." }), {
       status: 200,
       headers: { "Content-Type": "application/json" },

@@ -4,4 +4,5 @@ export default [
   index("routes/dashboard.tsx"),
   route("api/positions", "routes/api.positions.ts"),
   route("api/trigger-push", "routes/api.trigger-push.ts"),
+  route("api/subscribe", "routes/api.subscribe.ts"),
 ] satisfies RouteConfig;

@@ -56,6 +56,11 @@ console.log('[SW] ✅ Ready - Push API enabled for autonomous position checking'
 self.addEventListener('fetch', (event) => {
 	const url = new URL(event.request.url);
 	
+	// Skip unsupported schemes (chrome-extension, etc.)
+	if (!event.request.url.startsWith('http')) {
+		return;
+	}
+	
 	// Skip caching for non-GET requests (HEAD, POST, etc.)
 	if (event.request.method !== 'GET') {
 		event.respondWith(fetch(event.request));

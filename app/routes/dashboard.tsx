@@ -208,7 +208,8 @@ export default function Dashboard() {
 							await navigator.serviceWorker.ready;
 
 							// IMPORTANT: Replace with your actual VAPID public key from step 1
-							const vapidPublicKey = "YOUR_VAPID_PUBLIC_KEY_HERE";
+							const vapidPublicKey =
+								"BH3j8zyLhRiIOqt4wGx09jh5GRmkwk1-4btu6WhdFqvbP1dpPXRPdTSUTm7AZtif0tiyU2ILjFVQsFj7nRJfxn0";
 
 							// Check if already subscribed
 							let subscription = await registration.pushManager.getSubscription();

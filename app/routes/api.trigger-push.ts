@@ -1,14 +1,18 @@
-import type { ActionFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import webpush, { PushSubscription } from "web-push";
 import { getSubscriptions } from "~/routes/api.subscribe";
 
+// Handle GET requests (Vercel cron uses GET by default)
+export async function loader({ request }: LoaderFunctionArgs) {
+  return handleTrigger();
+}
+
+// Handle POST requests
 export async function action({ request }: ActionFunctionArgs) {
-  if (request.method !== "POST") {
-    return new Response(JSON.stringify({ message: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  return handleTrigger();
+}
+
+async function handleTrigger() {
 
   const subscriptions = await getSubscriptions();
 
@@ -28,7 +32,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   webpush.setVapidDetails(
-    "mailto:your-email@example.com", // Replace with your email
+    "mailto:lohitaryan20@gmail.com",
     process.env.VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY
   );

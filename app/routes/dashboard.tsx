@@ -185,31 +185,90 @@ export default function Dashboard() {
 		key: string;
 		direction: "asc" | "desc";
 	} | null>(null);
-	const [isSendingTest, setIsSendingTest] = useState(false);
+	const [isResetting, setIsResetting] = useState(false);
 
-	// Send test notification
-	const sendTestNotification = async () => {
-		setIsSendingTest(true);
+	// Reset service worker and resubscribe
+	const resetServiceWorker = async () => {
+		setIsResetting(true);
 		try {
-			const response = await fetch("/api/test-notification", {
-				method: "POST",
-			});
+			console.log("[Dashboard] 🔄 Resetting service worker...");
 
-			const data = await response.json();
-
-			if (response.ok && data.success) {
-				console.log(
-					"[Dashboard] ✅ Test notification sent:",
-					data.details.successful,
-					"successful"
-				);
-			} else {
-				console.error("[Dashboard] ❌ Failed to send test notification:", data);
+			// Unregister existing service worker
+			const registrations = await navigator.serviceWorker.getRegistrations();
+			for (const registration of registrations) {
+				await registration.unregister();
+				console.log("[Dashboard] ✅ Service worker unregistered");
 			}
+
+			// Wait a bit for cleanup
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			// Re-register service worker
+			const registration = await navigator.serviceWorker.register("/sw.js");
+			console.log("[Dashboard] ✅ Service worker re-registered:", registration);
+
+			// Request notification permission
+			let permission = Notification.permission;
+			if ("Notification" in window && permission === "default") {
+				permission = await Notification.requestPermission();
+				console.log("[Dashboard] Notification permission:", permission);
+			}
+
+			// Subscribe to push notifications if permission granted
+			if (permission === "granted") {
+				await navigator.serviceWorker.ready;
+
+				const vapidPublicKey =
+					"BH3j8zyLhRiIOqt4wGx09jh5GRmkwk1-4btu6WhdFqvbP1dpPXRPdTSUTm7AZtif0tiyU2ILjFVQsFj7nRJfxn0";
+
+				// Helper function to convert VAPID key
+				const urlBase64ToUint8Array = (base64String: string) => {
+					const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+					const base64 = (base64String + padding).replace(/\-/g, "+").replace(/_/g, "/");
+					const rawData = window.atob(base64);
+					const outputArray = new Uint8Array(rawData.length);
+					for (let i = 0; i < rawData.length; ++i) {
+						outputArray[i] = rawData.charCodeAt(i);
+					}
+					return outputArray;
+				};
+
+				// Subscribe to push notifications
+				const subscription = await registration.pushManager.subscribe({
+					userVisibleOnly: true,
+					applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+				});
+
+				console.log("[Dashboard] ✅ Subscribed to push notifications");
+
+				// Send subscription to server
+				console.log("[Dashboard] 📤 Sending subscription to server...");
+				const response = await fetch("/api/subscribe", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(subscription.toJSON()),
+				});
+
+				if (response.ok) {
+					console.log("[Dashboard] ✅ Subscription saved to database");
+				} else {
+					const errorText = await response.text();
+					console.error(
+						"[Dashboard] ❌ Failed to save subscription:",
+						response.status,
+						errorText
+					);
+				}
+			}
+
+			console.log("[Dashboard] ✅ Service worker reset complete!");
+			alert("Service worker reset successfully! Page will reload...");
+			window.location.reload();
 		} catch (error) {
-			console.error("[Dashboard] ❌ Error sending test notification:", error);
+			console.error("[Dashboard] ❌ Error resetting service worker:", error);
+			alert("Failed to reset service worker. Check console for details.");
 		} finally {
-			setIsSendingTest(false);
+			setIsResetting(false);
 		}
 	};
 
@@ -667,20 +726,20 @@ export default function Dashboard() {
 						<div className="flex items-center gap-2 flex-wrap">
 							<NotificationPermission />
 							<button
-								onClick={sendTestNotification}
-								disabled={isSendingTest}
-								className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white text-sm font-medium rounded-lg transition-colors"
-								title="Send test notification to all subscribed devices"
+								onClick={resetServiceWorker}
+								disabled={isResetting}
+								className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white text-sm font-medium rounded-lg transition-colors"
+								title="Reset service worker and resubscribe to notifications"
 							>
-								{isSendingTest ? (
+								{isResetting ? (
 									<>
 										<span className="animate-spin">⏳</span>
-										<span className="hidden md:inline">Sending...</span>
+										<span className="hidden md:inline">Resetting...</span>
 									</>
 								) : (
 									<>
-										<span>🧪</span>
-										<span className="hidden md:inline">Test Notification</span>
+										<span>🔄</span>
+										<span className="hidden md:inline">Reset SW</span>
 									</>
 								)}
 							</button>

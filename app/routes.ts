@@ -6,4 +6,5 @@ export default [
   route("api/trigger-push", "routes/api.trigger-push.ts"),
   route("api/subscribe", "routes/api.subscribe.ts"),
   route("api/test-notification", "routes/api.test-notification.ts"),
+  route("api/cleanup-subscriptions", "routes/api.cleanup-subscriptions.ts"),
 ] satisfies RouteConfig;

@@ -6,10 +6,20 @@ const redis = Redis.fromEnv();
 export async function action({ request }: ActionFunctionArgs) {
   console.log("[Subscribe] Received request:", request.method);
   
+  // Disable caching
+  const noCacheHeaders = {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "CDN-Cache-Control": "no-store",
+    "Vercel-CDN-Cache-Control": "no-store",
+    "Pragma": "no-cache",
+    "Expires": "0",
+  };
+  
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ message: "Method not allowed" }), {
       status: 405,
-      headers: { "Content-Type": "application/json" },
+      headers: noCacheHeaders,
     });
   }
 
@@ -31,7 +41,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: noCacheHeaders,
     });
   } catch (error) {
     console.error("[Subscribe] ❌ Error saving subscription:", error);
@@ -40,7 +50,7 @@ export async function action({ request }: ActionFunctionArgs) {
       details: error instanceof Error ? error.message : String(error)
     }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: noCacheHeaders,
     });
   }
 }

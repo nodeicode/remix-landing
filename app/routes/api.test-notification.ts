@@ -18,6 +18,16 @@ async function handleTestNotification() {
 	const subscriptions = await getSubscriptions();
 	console.log("[Test Notification] Found", subscriptions.length, "subscriptions");
 
+	// Disable caching
+	const noCacheHeaders = {
+		"Content-Type": "application/json",
+		"Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+		"CDN-Cache-Control": "no-store",
+		"Vercel-CDN-Cache-Control": "no-store",
+		"Pragma": "no-cache",
+		"Expires": "0",
+	};
+
 	if (subscriptions.length === 0) {
 		return new Response(
 			JSON.stringify({
@@ -27,7 +37,7 @@ async function handleTestNotification() {
 			}),
 			{
 				status: 200,
-				headers: { "Content-Type": "application/json" },
+				headers: noCacheHeaders,
 			}
 		);
 	}
@@ -40,7 +50,7 @@ async function handleTestNotification() {
 			}),
 			{
 				status: 500,
-				headers: { "Content-Type": "application/json" },
+				headers: noCacheHeaders,
 			}
 		);
 	}
@@ -87,7 +97,7 @@ async function handleTestNotification() {
 			}),
 			{
 				status: 200,
-				headers: { "Content-Type": "application/json" },
+				headers: noCacheHeaders,
 			}
 		);
 	} catch (error) {
@@ -99,7 +109,7 @@ async function handleTestNotification() {
 			}),
 			{
 				status: 500,
-				headers: { "Content-Type": "application/json" },
+				headers: noCacheHeaders,
 			}
 		);
 	}

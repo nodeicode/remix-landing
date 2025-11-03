@@ -15,6 +15,16 @@ export async function action({ request }: ActionFunctionArgs) {
 async function handleTrigger() {
   console.log("[Trigger Push] Starting...");
   
+  // Disable caching
+  const noCacheHeaders = {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "CDN-Cache-Control": "no-store",
+    "Vercel-CDN-Cache-Control": "no-store",
+    "Pragma": "no-cache",
+    "Expires": "0",
+  };
+  
   const subscriptions = await getSubscriptions();
   console.log("[Trigger Push] Found", subscriptions.length, "subscriptions");
 
@@ -22,7 +32,7 @@ async function handleTrigger() {
     console.log("[Trigger Push] No subscribers to notify");
     return new Response(JSON.stringify({ success: true, message: "No subscribers to notify." }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: noCacheHeaders,
     });
   }
 
@@ -30,7 +40,7 @@ async function handleTrigger() {
     console.error("You must set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY environment variables.");
     return new Response(JSON.stringify({ error: "VAPID keys not configured." }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: noCacheHeaders,
     });
   }
 
@@ -62,13 +72,13 @@ async function handleTrigger() {
       message: `Triggered position check for ${successCount}/${subscriptions.length} subscribers.` 
     }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: noCacheHeaders,
     });
   } catch (error) {
     console.error("[Trigger Push] Error sending notifications:", error);
     return new Response(JSON.stringify({ error: "Failed to send notifications." }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: noCacheHeaders,
     });
   }
 }

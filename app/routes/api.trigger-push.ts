@@ -10,7 +10,7 @@ export async function action({ request }: ActionFunctionArgs) {
     });
   }
 
-  const subscriptions = getSubscriptions();
+  const subscriptions = await getSubscriptions();
 
   if (subscriptions.length === 0) {
     return new Response(JSON.stringify({ success: true, message: "No subscribers to notify." }), {

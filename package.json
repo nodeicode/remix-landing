@@ -12,6 +12,7 @@
 		"@radix-ui/themes": "^3.0.5",
 		"@react-router/node": "^7.5.3",
 		"@react-router/serve": "^7.5.3",
+		"@upstash/redis": "^1.35.6",
 		"@vercel/analytics": "^1.2.2",
 		"@vercel/speed-insights": "^1.0.10",
 		"clsx": "^2.1.1",

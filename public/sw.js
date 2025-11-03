@@ -1,10 +1,10 @@
 // Service Worker for Trading Dashboard PWA
 // Uses Push API for autonomous position checking - works on mobile and desktop
-// Version: 1.1.0 - Test notification support
+// Version: 1.2.0 - Fixed POST request handling
 
 const CACHE_NAME = 'trading-dashboard-v1';
 const API_ENDPOINT = '/api/positions';
-const SW_VERSION = '1.1.0';
+const SW_VERSION = '1.2.0';
 
 // Cache essential assets
 const ASSETS_TO_CACHE = [
@@ -64,15 +64,9 @@ self.addEventListener('fetch', (event) => {
 		return;
 	}
 	
-	// Skip caching for non-GET requests (HEAD, POST, etc.)
-	if (event.request.method !== 'GET') {
+	// For API requests or non-GET requests, pass through without caching
+	if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
 		event.respondWith(fetch(event.request));
-		return;
-	}
-
-	// Never cache API requests - always fetch fresh data
-	if (url.pathname.startsWith('/api/')) {
-		event.respondWith(fetch(event.request, { cache: 'no-store' }));
 		return;
 	}
 

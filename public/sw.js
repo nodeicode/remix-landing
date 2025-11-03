@@ -325,11 +325,36 @@ self.addEventListener('notificationclick', (event) => {
 
 // Handle push events - server sends empty push to trigger position check
 self.addEventListener('push', (event) => {
-	console.log('[SW] 🔔 Push notification received - checking positions');
+	console.log('[SW] 🔔 Push notification received');
 	
-	// Server sends a push to wake up the service worker
-	// We check positions and send notifications if there are changes
-	event.waitUntil(checkPositionChanges());
+	// Check if there's a payload (e.g., from test notification)
+	let payload = null;
+	if (event.data) {
+		try {
+			payload = event.data.json();
+			console.log('[SW] Push payload:', payload);
+		} catch (e) {
+			console.log('[SW] No JSON payload, treating as position check trigger');
+		}
+	}
+	
+	// If payload has notification data (from test), show it directly
+	if (payload && payload.title) {
+		console.log('[SW] 🧪 Test notification received');
+		event.waitUntil(
+			self.registration.showNotification(payload.title, {
+				body: payload.body,
+				icon: payload.icon || '/icon-192.png',
+				badge: payload.badge || '/icon-192.png',
+				tag: 'test-notification',
+				data: { type: 'test', url: '/dashboard' },
+			})
+		);
+	} else {
+		// Empty payload = regular position check
+		console.log('[SW] Position check trigger');
+		event.waitUntil(checkPositionChanges());
+	}
 });
 
 // Message handler for communication with clients

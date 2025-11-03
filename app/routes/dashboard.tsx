@@ -3,6 +3,7 @@ import { useLoaderData, useRevalidator } from "react-router";
 import { TradesTable } from "../components/trades-table";
 import { ActivePositions } from "../components/active-positions";
 import { SyncStatus } from "../components/sync-status";
+import { NotificationPermission } from "../components/notification-permission";
 
 // Types for Alpaca API responses
 interface PortfolioHistoryData {
@@ -185,24 +186,74 @@ export default function Dashboard() {
 		direction: "asc" | "desc";
 	} | null>(null);
 
-	// Register service worker for PWA
+	// Register service worker and subscribe to push notifications
 	useEffect(() => {
 		if ("serviceWorker" in navigator) {
-			let checkInterval: NodeJS.Timeout | null = null;
-
 			navigator.serviceWorker
 				.register("/sw.js")
-				.then((registration) => {
-					console.log("Service Worker registered:", registration);
+				.then(async (registration) => {
+					console.log("[Dashboard] Service Worker registered:", registration);
 
 					// Request notification permission
-					if ("Notification" in window && Notification.permission === "default") {
-						Notification.requestPermission().then((permission) => {
-							console.log("Notification permission:", permission);
-						});
+					let permission = Notification.permission;
+					if ("Notification" in window && permission === "default") {
+						permission = await Notification.requestPermission();
+						console.log("[Dashboard] Notification permission:", permission);
 					}
 
-					console.log("💡 Position checks will work while the app is open");
+					// Subscribe to push notifications if permission granted
+					if (permission === "granted") {
+						try {
+							// Wait for service worker to be ready
+							await navigator.serviceWorker.ready;
+
+							// IMPORTANT: Replace with your actual VAPID public key from step 1
+							const vapidPublicKey = "YOUR_VAPID_PUBLIC_KEY_HERE";
+
+							// Check if already subscribed
+							let subscription = await registration.pushManager.getSubscription();
+
+							if (!subscription) {
+								// Helper function to convert VAPID key
+								const urlBase64ToUint8Array = (base64String: string) => {
+									const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+									const base64 = (base64String + padding)
+										.replace(/\-/g, "+")
+										.replace(/_/g, "/");
+									const rawData = window.atob(base64);
+									const outputArray = new Uint8Array(rawData.length);
+									for (let i = 0; i < rawData.length; ++i) {
+										outputArray[i] = rawData.charCodeAt(i);
+									}
+									return outputArray;
+								};
+
+								// Subscribe to push notifications
+								subscription = await registration.pushManager.subscribe({
+									userVisibleOnly: true,
+									applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+								});
+
+								console.log("[Dashboard] ✅ Subscribed to push notifications");
+
+								// Send subscription to server
+								await fetch("/api/subscribe", {
+									method: "POST",
+									headers: { "Content-Type": "application/json" },
+									body: JSON.stringify(subscription.toJSON()),
+								});
+
+								console.log("[Dashboard] ✅ Subscription sent to server");
+							} else {
+								console.log("[Dashboard] ✅ Already subscribed to push notifications");
+							}
+						} catch (error) {
+							console.error(
+								"[Dashboard] ❌ Failed to subscribe to push notifications:",
+								error
+							);
+						}
+					}
 
 					// Listen for messages from service worker
 					const handleMessage = (event: MessageEvent) => {
@@ -211,63 +262,19 @@ export default function Dashboard() {
 						// Revalidate data when sync completes with changes
 						if (event.data.type === "SYNC_COMPLETED" && event.data.hasChanges) {
 							console.log("[Dashboard] 🔄 Position changes detected!");
-							console.log("[Dashboard] Revalidator state before:", revalidator.state);
-							revalidator.revalidate();
-							console.log("[Dashboard] ✅ Revalidation triggered");
-							// Log state after a short delay
-							setTimeout(() => {
-								console.log("[Dashboard] Revalidator state after:", revalidator.state);
-							}, 100);
-						}
-
-						// Legacy support for old message type
-						if (event.data.type === "POSITIONS_UPDATED" && event.data.hasChanges) {
-							console.log("[Dashboard] Positions updated (legacy), revalidating data...");
 							revalidator.revalidate();
 						}
 					};
 
 					navigator.serviceWorker.addEventListener("message", handleMessage);
 
-					// Set up interval to trigger position checks from the page
-					// This is more reliable than service worker's setInterval which can sleep
-					const CHECK_INTERVAL = 60 * 1000; // 1 minute
-					console.log("[Dashboard] 🔄 Setting up position check interval (60 seconds)");
-
-					const triggerPositionCheck = () => {
-						if (navigator.serviceWorker.controller) {
-							console.log("[Dashboard] ⏰ Triggering periodic position check...");
-							navigator.serviceWorker.controller.postMessage({
-								type: "CHECK_NOW",
-							});
-						} else {
-							console.warn("[Dashboard] ⚠️ No service worker controller available");
-						}
-					};
-
-					// Run immediate check
-					triggerPositionCheck();
-
-					// Set up periodic checks
-					checkInterval = setInterval(triggerPositionCheck, CHECK_INTERVAL);
-					console.log(
-						"[Dashboard] ✅ Position check interval started (ID:",
-						checkInterval,
-						")"
-					);
-
-					// Cleanup listener and interval on unmount
+					// Cleanup listener on unmount
 					return () => {
-						console.log("[Dashboard] 🧹 Cleaning up service worker listeners and interval");
 						navigator.serviceWorker.removeEventListener("message", handleMessage);
-						if (checkInterval) {
-							clearInterval(checkInterval);
-							console.log("[Dashboard] ✅ Position check interval cleared");
-						}
 					};
 				})
 				.catch((error) => {
-					console.error("Service Worker registration failed:", error);
+					console.error("[Dashboard] Service Worker registration failed:", error);
 				});
 		}
 	}, [revalidator]);
@@ -577,7 +584,6 @@ export default function Dashboard() {
 						Portfolio performance and trade history
 					</p>
 				</div>
-
 				{/* Combined Filters Row */}
 				<div className="mb-6 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
 					<div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -619,11 +625,13 @@ export default function Dashboard() {
 							</select>
 						</div>
 
-						{/* Sync Status Indicator */}
-						<SyncStatus className="px-3 md:px-4 py-1.5 md:py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700" />
+						{/* Status Indicators */}
+						<div className="flex items-center gap-2 flex-wrap">
+							<NotificationPermission />
+							<SyncStatus className="px-3 md:px-4 py-1.5 md:py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700" />
+						</div>
 					</div>
-				</div>
-
+				</div>{" "}
 				{/* Portfolio Summary Cards */}
 				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
 					<div className="bg-white dark:bg-gray-800 rounded-lg p-3 md:p-4 border border-gray-200 dark:border-gray-700">
@@ -687,7 +695,6 @@ export default function Dashboard() {
 						</div>
 					</div>
 				</div>
-
 				{/* Risk-Adjusted Metrics */}
 				<div className="mb-3 md:mb-4">
 					<h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3">
@@ -803,7 +810,6 @@ export default function Dashboard() {
 						</div>
 					</div>
 				</div>
-
 				{/* Trade Summary */}
 				<div className="mb-3 md:mb-4">
 					<h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3">
@@ -829,7 +835,6 @@ export default function Dashboard() {
 						</div>
 					</div>
 				</div>
-
 				{/* Active Positions */}
 				<div className="mb-6">
 					<h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white mb-3">
@@ -837,7 +842,6 @@ export default function Dashboard() {
 					</h2>
 					<ActivePositions positions={positions} getUnderlyingTicker={getUnderlyingTicker} />
 				</div>
-
 				{/* Trade History */}
 				<div className="mb-4">
 					<h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white mb-3">
@@ -847,7 +851,6 @@ export default function Dashboard() {
 						</span>
 					</h2>
 				</div>
-
 				{/* Trades Table */}
 				<div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
 					<TradesTable

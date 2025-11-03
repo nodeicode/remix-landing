@@ -1,9 +1,8 @@
 // Service Worker for Trading Dashboard PWA
-// Follows Apple's best practices for push notifications
+// Uses Push API for autonomous position checking - works on mobile and desktop
 
 const CACHE_NAME = 'trading-dashboard-v1';
-const API_ENDPOINT = '/api/positions'; // Use our backend API proxy
-const CHECK_INTERVAL = 30 * 1000; // 30 seconds in milliseconds
+const API_ENDPOINT = '/api/positions';
 
 // Cache essential assets
 const ASSETS_TO_CACHE = [
@@ -51,8 +50,7 @@ self.addEventListener('activate', (event) => {
 	return self.clients.claim();
 });
 
-console.log('[Service Worker] ✅ Service worker loaded and ready');
-console.log('[Service Worker] Position checks will be triggered by the dashboard page every 30 seconds');
+console.log('[SW] ✅ Ready - Push API enabled for autonomous position checking');
 
 // Fetch event - network first for API, cache for static assets
 self.addEventListener('fetch', (event) => {
@@ -66,12 +64,7 @@ self.addEventListener('fetch', (event) => {
 
 	// Never cache API requests - always fetch fresh data
 	if (url.pathname.startsWith('/api/')) {
-		console.log('[Service Worker] API request - bypassing cache:', url.pathname);
-		event.respondWith(
-			fetch(event.request, {
-				cache: 'no-store', // Force fresh fetch, bypass HTTP cache
-			})
-		);
+		event.respondWith(fetch(event.request, { cache: 'no-store' }));
 		return;
 	}
 
@@ -155,31 +148,22 @@ async function storePositions(positions) {
 // Fetch current positions from Alpaca API via our backend
 async function fetchPositions() {
 	try {
-		console.log('[Service Worker] 📡 Fetching fresh positions from:', API_ENDPOINT);
-		
-		// Use our secure backend API endpoint instead of direct Alpaca API
-		// Force fresh fetch by adding cache: 'no-store' and timestamp
 		const apiResponse = await fetch(`${API_ENDPOINT}?t=${Date.now()}`, {
 			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			cache: 'no-store', // Bypass cache
+			headers: { 'Content-Type': 'application/json' },
+			cache: 'no-store',
 		});
 
 		if (!apiResponse.ok) {
-			console.error('[Service Worker] Failed to fetch positions:', apiResponse.status);
-			const errorData = await apiResponse.json().catch(() => ({}));
-			console.error('[Service Worker] Error details:', errorData);
+			console.error('[SW] Failed to fetch positions:', apiResponse.status);
 			return null;
 		}
 
 		const positions = await apiResponse.json();
-		console.log('[Service Worker] ✅ Fetched fresh positions:', positions.length);
-		console.log('[Service Worker] Position symbols:', positions.map(p => p.symbol));
+		console.log('[SW] ✅ Fetched', positions.length, 'positions');
 		return positions;
 	} catch (error) {
-		console.error('[Service Worker] ❌ Error fetching positions:', error);
+		console.error('[SW] Error fetching:', error.message);
 		return null;
 	}
 }
@@ -213,101 +197,38 @@ function comparePositions(oldPositions, newPositions) {
 
 // Send push notification with detailed trade information
 async function sendNotification(type, position) {
-	console.log('[Service Worker] 🔔 sendNotification START:', { type, symbol: position.symbol });
-	
 	try {
-		// First, verify we have a valid registration
-		if (!self.registration) {
-			console.error('[Service Worker] ❌ No registration available!');
-			return;
-		}
-		
-		console.log('[Service Worker] Registration valid:', {
-			scope: self.registration.scope,
-			active: !!self.registration.active,
-		});
+		if (!self.registration) return;
 		
 		const ticker = getUnderlyingTicker(position.symbol);
 		const qty = Math.abs(parseFloat(position.qty));
 		
-		let title, body, icon, badge;
+		let title, body;
 		
 		if (type === 'opened') {
 			const price = parseFloat(position.avg_entry_price);
-			const costBasis = parseFloat(position.cost_basis);
-			const side = position.side === 'long' ? 'Long' : 'Short';
-			
-			title = `📈 Position Opened: ${ticker}`;
-			body = `${side} ${qty.toLocaleString()} shares @ $${price.toFixed(2)}\nCost Basis: $${Math.abs(costBasis).toLocaleString(undefined, {
-				minimumFractionDigits: 2,
-				maximumFractionDigits: 2
-			})}`;
-			icon = '/icon-192.png';
-			badge = '/icon-192.png';
-		} else if (type === 'closed') {
-			const unrealizedPl = parseFloat(position.unrealized_pl || 0);
-			const unrealizedPlPct = parseFloat(position.unrealized_plpc || 0) * 100;
-			const isProfit = unrealizedPl >= 0;
-			
-			title = `📊 Position Closed: ${ticker}`;
-			body = `${qty.toLocaleString()} shares\n${isProfit ? 'Profit' : 'Loss'}: $${Math.abs(unrealizedPl).toLocaleString(undefined, {
-				minimumFractionDigits: 2,
-				maximumFractionDigits: 2
-			})} (${isProfit ? '+' : ''}${unrealizedPlPct.toFixed(2)}%)`;
-			icon = '/icon-192.png';
-			badge = '/icon-192.png';
+			const costBasis = Math.abs(parseFloat(position.cost_basis));
+			title = `📈 ${ticker} Position Opened`;
+			body = `${qty} shares @ $${price.toFixed(2)} (Cost: $${costBasis.toFixed(2)})`;
+		} else {
+			const pl = parseFloat(position.unrealized_pl || 0);
+			const plPct = (parseFloat(position.unrealized_plpc || 0) * 100).toFixed(2);
+			title = `📊 ${ticker} Position Closed`;
+			body = `${qty} shares - ${pl >= 0 ? 'Profit' : 'Loss'}: $${Math.abs(pl).toFixed(2)} (${pl >= 0 ? '+' : ''}${plPct}%)`;
 		}
 		
-		const notificationOptions = {
+		await self.registration.showNotification(title, {
 			body,
-			icon,
-			badge,
-			tag: `${type}-${position.symbol}-${Date.now()}`,
-			requireInteraction: false,
-			silent: false, // Make sure it's not silent
-			vibrate: [200, 100, 200],
-			data: {
-				type,
-				symbol: position.symbol,
-				ticker,
-				url: '/dashboard',
-			},
-			actions: [
-				{
-					action: 'view',
-					title: '👁️ View Dashboard',
-				},
-			],
-		};
-		
-		console.log('[Service Worker] 📤 About to call showNotification with:', { 
-			title, 
-			bodyPreview: body.substring(0, 50) + '...',
-			tag: notificationOptions.tag,
+			icon: '/icon-192.png',
+			badge: '/icon-192.png',
+			tag: `${type}-${position.symbol}`,
+			data: { type, symbol: position.symbol, ticker, url: '/dashboard' },
 		});
 		
-		const notificationPromise = self.
-		ration.showNotification(title, notificationOptions);
-		console.log('[Service Worker] showNotification called, waiting for promise...');
-		
-		await notificationPromise;
-		
-		console.log('[Service Worker] ✅ showNotification promise resolved! Notification should be visible now.');
+		console.log('[SW] ✅ Notification sent:', title);
 	} catch (error) {
-		console.error('[Service Worker] ❌ NOTIFICATION FAILED!');
-		console.error('[Service Worker] Error type:', error.constructor.name);
-		console.error('[Service Worker] Error message:', error.message);
-		console.error('[Service Worker] Error stack:', error.stack);
-		
-		// Try to get more details about why it failed
-		if (error.name === 'TypeError') {
-			console.error('[Service Worker] TypeError - possibly invalid notification options');
-		} else if (error.name === 'SecurityError') {
-			console.error('[Service Worker] SecurityError - permission or origin issue');
-		}
+		console.error('[SW] Notification failed:', error.message);
 	}
-	
-	console.log('[Service Worker] 🔔 sendNotification END:', { type, symbol: position.symbol });
 }
 
 // Extract underlying ticker from option symbols
@@ -318,132 +239,58 @@ function getUnderlyingTicker(symbol) {
 
 // Check for position changes
 async function checkPositionChanges() {
-	const now = new Date().toLocaleTimeString();
-	console.log(`[Service Worker] ${now} - Checking for position changes...`);
+	console.log('[SW] Checking positions...');
 	
-	// Notify clients that sync is starting
-	let clients = await self.clients.matchAll();
+	// Notify clients sync started
+	const clients = await self.clients.matchAll();
 	clients.forEach(client => {
-		client.postMessage({
-			type: 'SYNC_STARTED',
-			timestamp: Date.now(),
-		});
+		client.postMessage({ type: 'SYNC_STARTED', timestamp: Date.now() });
 	});
 	
 	const currentPositions = await fetchPositions();
 	if (!currentPositions) {
-		console.log('[Service Worker] No positions fetched, skipping check');
-		// Notify clients that sync failed
 		clients.forEach(client => {
-			client.postMessage({
-				type: 'SYNC_FAILED',
-				timestamp: Date.now(),
-			});
+			client.postMessage({ type: 'SYNC_FAILED', timestamp: Date.now() });
 		});
 		return;
 	}
 
 	const storedPositions = await getStoredPositions();
 	
-	console.log('[Service Worker] 📊 Comparison data:', {
-		stored: storedPositions.length,
-		current: currentPositions.length,
-		storedSymbols: storedPositions.map(p => p.symbol).sort(),
-		currentSymbols: currentPositions.map(p => p.symbol).sort(),
-	});
-	
-	// Log detailed position data for debugging
-	if (storedPositions.length !== currentPositions.length) {
-		console.log('[Service Worker] ⚠️ Position count changed!', {
-			before: storedPositions.length,
-			after: currentPositions.length,
-			difference: currentPositions.length - storedPositions.length,
-		});
-	}
-	
-	// If this is the first check, just store the positions without sending notifications
+	// First check - just store without notifications
 	if (storedPositions.length === 0) {
-		console.log('[Service Worker] First check, storing initial positions');
-		console.log('[Service Worker] Initial position symbols:', currentPositions.map(p => p.symbol));
+		console.log('[SW] First check - storing', currentPositions.length, 'positions');
 		await storePositions(currentPositions);
-		console.log('[Service Worker] ✅ Initial positions stored in IndexedDB');
-		// Notify clients that sync completed
 		clients.forEach(client => {
-			client.postMessage({
-				type: 'SYNC_COMPLETED',
-				hasChanges: false,
-				timestamp: Date.now(),
-			});
+			client.postMessage({ type: 'SYNC_COMPLETED', hasChanges: false, timestamp: Date.now() });
 		});
 		return;
 	}
 	
 	const changes = comparePositions(storedPositions, currentPositions);
+	const hasChanges = changes.opened.length > 0 || changes.closed.length > 0;
 
-	console.log('[Service Worker] 🔍 Position changes detected:', {
-		opened: changes.opened.length,
-		closed: changes.closed.length,
-		total: currentPositions.length,
-		openedSymbols: changes.opened.map(p => p.symbol),
-		closedSymbols: changes.closed.map(p => p.symbol),
-	});
-
-	// Check notification permission before sending
-	if (changes.opened.length > 0 || changes.closed.length > 0) {
-		console.log('[Service Worker] Changes detected! Preparing to send notifications...');
-		console.log('[Service Worker] Number of notifications to send:', 
-			changes.opened.length + changes.closed.length);
+	if (hasChanges) {
+		console.log('[SW] 📊 Changes:', changes.opened.length, 'opened,', changes.closed.length, 'closed');
 		
-		// Get all clients to check notification permission from page context
-		const clientList = await self.clients.matchAll();
-		if (clientList.length > 0) {
-			console.log('[Service Worker] Active clients found:', clientList.length);
-		} else {
-			console.warn('[Service Worker] No active clients found - notifications may not work!');
-		}
-	}
-
-	// Send notifications for opened positions
-	if (changes.opened.length > 0) {
-		console.log('[Service Worker] 🔔 Preparing to send', changes.opened.length, 'OPENED notification(s)');
+		// Send notifications
 		for (const position of changes.opened) {
-			console.log('[Service Worker] 📢 Sending OPENED notification for:', position.symbol);
 			await sendNotification('opened', position);
 		}
-	}
-
-	// Send notifications for closed positions
-	if (changes.closed.length > 0) {
-		console.log('[Service Worker] 🔔 Preparing to send', changes.closed.length, 'CLOSED notification(s)');
 		for (const position of changes.closed) {
-			console.log('[Service Worker] 📢 Sending CLOSED notification for:', position.symbol);
 			await sendNotification('closed', position);
 		}
 	}
 
-	// Always store current positions after comparison
-	// This ensures we have the latest state for next check
-	console.log('[Service Worker] 💾 Storing current positions in IndexedDB...');
+	// Store current positions
 	await storePositions(currentPositions);
-	console.log('[Service Worker] ✅ Positions stored. Next check will compare against:', currentPositions.map(p => p.symbol).sort());
 	
-	// Send message to all clients to refresh data
-	clients = await self.clients.matchAll();
-	const hasChanges = changes.opened.length > 0 || changes.closed.length > 0;
-	console.log('[Service Worker] 📤 Sending SYNC_COMPLETED message to clients:', {
-		hasChanges,
-		clientCount: clients.length,
-	});
-	
+	// Notify clients
 	clients.forEach(client => {
-		client.postMessage({
-			type: 'SYNC_COMPLETED',
-			hasChanges,
-			timestamp: Date.now(),
-		});
+		client.postMessage({ type: 'SYNC_COMPLETED', hasChanges, timestamp: Date.now() });
 	});
 	
-	console.log('[Service Worker] ✅ Position check complete');
+	console.log('[SW] ✅ Check complete');
 }
 
 // Handle notification clicks
@@ -471,66 +318,23 @@ self.addEventListener('notificationclick', (event) => {
 	);
 });
 
-// Handle push events (for when server sends push)
+// Handle push events - server sends empty push to trigger position check
 self.addEventListener('push', (event) => {
-	console.log('[Service Worker] Push received');
+	console.log('[SW] 🔔 Push notification received - checking positions');
 	
-	const data = event.data ? event.data.json() : {};
-	const title = data.title || 'Trading Dashboard';
-	const options = {
-		body: data.body || 'New update available',
-		icon: '/favicon.ico',
-		badge: '/favicon.ico',
-		data: data.data || {},
-	};
-
-	event.waitUntil(
-		self.registration.showNotification(title, options)
-	);
+	// Server sends a push to wake up the service worker
+	// We check positions and send notifications if there are changes
+	event.waitUntil(checkPositionChanges());
 });
 
 // Message handler for communication with clients
 self.addEventListener('message', (event) => {
-	console.log('[Service Worker] Message received:', event.data);
-	
 	if (event.data.type === 'CHECK_NOW') {
-		console.log('[Service Worker] Manual position check requested');
+		console.log('[SW] Manual check requested');
 		event.waitUntil(checkPositionChanges());
-	}
-	
-	if (event.data.type === 'TEST_NOTIFICATION') {
-		// Send a test notification immediately
-		event.waitUntil(
-			sendTestNotification(event.data.testType || 'opened')
-		);
 	}
 	
 	if (event.data.type === 'SKIP_WAITING') {
 		self.skipWaiting();
 	}
 });
-
-// Send a test notification for demonstration
-async function sendTestNotification(type) {
-	console.log('[Service Worker] Sending test notification:', type);
-	
-	// Create a mock position for testing
-	const mockPosition = {
-		symbol: 'AAPL',
-		qty: '100',
-		avg_entry_price: '150.00',
-		cost_basis: '15000.00',
-		market_value: '15500.00',
-		unrealized_pl: '500.00',
-		unrealized_plpc: '0.0333',
-		current_price: '155.00',
-		side: 'long'
-	};
-	
-	try {
-		await sendNotification(type, mockPosition);
-		console.log('[Service Worker] Test notification sent successfully');
-	} catch (error) {
-		console.error('[Service Worker] Failed to send test notification:', error);
-	}
-}

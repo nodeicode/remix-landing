@@ -9,14 +9,24 @@ export function headers() {
   };
 }
 
-// Handle GET requests (Vercel cron uses GET by default)
+// Handle OPTIONS for CORS preflight
 export async function loader({ request }: LoaderFunctionArgs) {
-  return handleTrigger();
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    });
+  }
+  return handleTrigger(request);
 }
 
 // Handle POST requests
 export async function action({ request }: ActionFunctionArgs) {
-  return handleTrigger();
+  return handleTrigger(request);
 }
 
 // Disable caching for this route - for Vercel edge
@@ -25,14 +35,31 @@ export const config = {
   maxDuration: 10,
 };
 
-async function handleTrigger() {
+async function handleTrigger(request: Request) {
   console.log("[Trigger Push] Starting...");
   
   const headers = {
     "Content-Type": "application/json",
     "Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
     "Vercel-CDN-Cache-Control": "max-age=0",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
+
+  // Check authorization if CRON_SECRET is set
+  if (process.env.CRON_SECRET) {
+    const authHeader = request.headers.get("Authorization");
+    const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
+    
+    if (authHeader !== expectedAuth) {
+      console.error("[Trigger Push] Unauthorized request");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers,
+      });
+    }
+  }
   
   const subscriptions = await getSubscriptions();
   console.log("[Trigger Push] Found", subscriptions.length, "subscriptions");

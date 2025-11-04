@@ -1,6 +1,7 @@
 import { MoonIcon, SunIcon } from "@heroicons/react/solid";
-import { UserIcon, BriefcaseIcon, BeakerIcon } from "@heroicons/react/solid";
+import { UserIcon, BriefcaseIcon, BeakerIcon, ChartBarIcon } from "@heroicons/react/solid";
 import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { Link } from "react-router";
 
 const NavIcon = (props: {
 	textColor: string;
@@ -96,6 +97,12 @@ export default function Nav({
 				className: `ri-moon-fill h-12 w-8 transition-colors hover:cursor-pointer hover:text-gray ${getTextColor()}`,
 				onClick: () => toggleTheme(),
 			})}
+			<Link
+				to="/dashboard"
+				className="flex h-8 md:h-12 w-8 md:w-12 items-center justify-center rounded-full outline-2 outline-dark transition-all duration-[450ms] hover:cursor-pointer hover:text-gray hover:outline-gray dark:outline-gray-light dark:hover:outline-gray"
+			>
+				<ChartBarIcon className={`h-12 w-6 md:w-8 ${getTextColor()} text-inherit`} />
+			</Link>
 			<NavIcon
 				textColor={getTextColor()}
 				activeIcon={activeIcon}

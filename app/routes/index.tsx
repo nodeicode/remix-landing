@@ -107,42 +107,44 @@ export default function App() {
 	};
 
 	return (
-		<>
-			<Nav
-				activeIcon={activeSection}
-				setIcon={setActiveSection}
-				onManualScroll={handleManualScroll}
-				{...{ darkMode, toggleTheme }}
-			/>
-			<motion.div
-				className="h-screen overflow-y-auto transition-all pr-2"
-				initial={{ opacity: 0 }}
-				animate={{ opacity: 1 }}
-			>
-				<SectionWrapper
-					id="about"
-					onInView={handleSectionView("about")}
-					isManualScrolling={isManualScrolling}
+		<div className="flex flex-col gap-7 overflow-hidden bg-light dark:bg-dark lg:flex-row justify-center items-center px-4 relative z-10">
+			<div className="prose prose-sm md:prose-base lg:prose-lg flex flex-row-reverse md:gap-6 min-w-[50vw]! overflow-hidden prose-stone font-mono dark:prose-invert prose-a:text-blue-600 dark:prose-a:text-dblue lg:px-4">
+				<Nav
+					activeIcon={activeSection}
+					setIcon={setActiveSection}
+					onManualScroll={handleManualScroll}
+					{...{ darkMode, toggleTheme }}
+				/>
+				<motion.div
+					className="h-screen overflow-y-auto transition-all pr-2"
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
 				>
-					<IndexContent />
-				</SectionWrapper>
-				<SectionWrapper
-					id="work"
-					onInView={handleSectionView("work")}
-					title="My Work Experience"
-					isManualScrolling={isManualScrolling}
-				>
-					<MyWorkContent {...{ darkMode }} />
-				</SectionWrapper>
-				<SectionWrapper
-					id="projects"
-					onInView={handleSectionView("projects")}
-					title="Projects"
-					isManualScrolling={isManualScrolling}
-				>
-					<ProjectsContent />
-				</SectionWrapper>
-			</motion.div>
-		</>
+					<SectionWrapper
+						id="about"
+						onInView={handleSectionView("about")}
+						isManualScrolling={isManualScrolling}
+					>
+						<IndexContent />
+					</SectionWrapper>
+					<SectionWrapper
+						id="work"
+						onInView={handleSectionView("work")}
+						title="My Work Experience"
+						isManualScrolling={isManualScrolling}
+					>
+						<MyWorkContent {...{ darkMode }} />
+					</SectionWrapper>
+					<SectionWrapper
+						id="projects"
+						onInView={handleSectionView("projects")}
+						title="Projects"
+						isManualScrolling={isManualScrolling}
+					>
+						<ProjectsContent />
+					</SectionWrapper>
+				</motion.div>
+			</div>
+		</div>
 	);
 }

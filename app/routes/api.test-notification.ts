@@ -35,9 +35,6 @@ async function handleTestNotification() {
 		"Content-Type": "application/json",
 		"Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
 		"Vercel-CDN-Cache-Control": "max-age=0",
-		"Access-Control-Allow-Origin": "*",
-		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-		"Access-Control-Allow-Headers": "Content-Type",
 	};
 
 	if (subscriptions.length === 0) {

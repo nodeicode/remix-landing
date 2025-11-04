@@ -11,18 +11,6 @@ export function headers() {
 
 // Handle GET requests - send test notification
 export async function loader({ request }: LoaderFunctionArgs) {
-	// Handle OPTIONS preflight request
-	if (request.method === "OPTIONS") {
-		return new Response(null, {
-			status: 204,
-			headers: {
-				"Access-Control-Allow-Origin": "*",
-				"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-				"Access-Control-Allow-Headers": "Content-Type",
-			},
-		});
-	}
-	
 	return handleTestNotification();
 }
 

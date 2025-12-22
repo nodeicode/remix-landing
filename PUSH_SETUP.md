@@ -139,9 +139,9 @@ npm install -D @types/web-push
 
 You need to call `/api/trigger-push` every hour to wake up the service workers. Options:
 
-#### Option A: Vercel Cron Jobs (if deployed on Vercel)
+#### Option A: Vercel Cron Jobs
 
-Create `vercel.json`:
+Created `vercel.json`:
 
 ```json
 {
@@ -156,43 +156,10 @@ Create `vercel.json`:
 
 #### Option B: External Cron Service
 
-Use a service like:
-
 - cron-job.org
-- EasyCron
-- GitHub Actions
 
-Set it to POST to: `https://your-domain.com/api/trigger-push` every hour
-
-#### Option C: Node Cron (if self-hosted)
-
-Create `app/cron.ts`:
-
-```typescript
-import cron from "node-cron";
-
-// Run every hour
-cron.schedule("0 * * * *", async () => {
-	console.log("[Cron] Triggering push notifications...");
-	try {
-		const response = await fetch("http://localhost:3000/api/trigger-push", {
-			method: "POST",
-		});
-		const data = await response.json();
-		console.log("[Cron] Result:", data);
-	} catch (error) {
-		console.error("[Cron] Error:", error);
-	}
-});
-```
-
-### 6. Testing
-
-Test the push notification manually:
-
-```bash
-curl -X POST http://localhost:3000/api/trigger-push
-```
+was setup to trigger api endpoint at 10:05 am every day.
+(3rd party service was chosen since vercel cron cannot guarentee if cron job is executed at 10:05 rather a loose range 10:05 to 11:04)
 
 ## How It Works
 

@@ -186,6 +186,28 @@ export default function Dashboard() {
 		direction: "asc" | "desc";
 	} | null>(null);
 	const [isResetting, setIsResetting] = useState(false);
+	const [isTesting, setIsTesting] = useState(false);
+
+	// Send a test notification
+	const sendTestNotification = async () => {
+		setIsTesting(true);
+		try {
+			const response = await fetch("/api/test-notification", {
+				method: "POST",
+			});
+			const result = await response.json();
+			if (result.success) {
+				alert(result.message);
+			} else {
+				alert("Failed: " + (result.message || result.error));
+			}
+		} catch (error) {
+			console.error("Error sending test notification:", error);
+			alert("Error sending test notification");
+		} finally {
+			setIsTesting(false);
+		}
+	};
 
 	// Reset service worker and resubscribe
 	const resetServiceWorker = async () => {
@@ -725,6 +747,24 @@ export default function Dashboard() {
 						{/* Status Indicators */}
 						<div className="flex items-center gap-2 flex-wrap">
 							<NotificationPermission />
+							<button
+								onClick={sendTestNotification}
+								disabled={isTesting}
+								className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium rounded-lg transition-colors"
+								title="Send a test push notification"
+							>
+								{isTesting ? (
+									<>
+										<span className="animate-spin">⏳</span>
+										<span className="hidden md:inline">Sending...</span>
+									</>
+								) : (
+									<>
+										<span>🔔</span>
+										<span className="hidden md:inline">Test Push</span>
+									</>
+								)}
+							</button>
 							<button
 								onClick={resetServiceWorker}
 								disabled={isResetting}

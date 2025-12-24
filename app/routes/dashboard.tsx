@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useLoaderData, useRevalidator } from "react-router";
+import { useRevalidator } from "react-router";
 import { TradesTable } from "../components/trades-table";
 import { ActivePositions } from "../components/active-positions";
 import { SyncStatus } from "../components/sync-status";
@@ -51,133 +51,72 @@ interface Activity {
 
 type Timeframe = "1D" | "1W" | "1M" | "3M" | "ALL";
 
-// Server-side loader to fetch data from Alpaca API
-export async function loader() {
-	const ALPACA_API_KEY = process.env.ALPACA_API_KEY;
-	const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY;
-	const ALPACA_BASE_URL = process.env.ALPACA_BASE_URL || "https://paper-api.alpaca.markets";
-
-	console.log("Alpaca config:", {
-		hasApiKey: !!ALPACA_API_KEY,
-		hasSecretKey: !!ALPACA_SECRET_KEY,
-		baseUrl: ALPACA_BASE_URL,
-	});
-
-	if (!ALPACA_API_KEY || !ALPACA_SECRET_KEY) {
-		console.error("Missing Alpaca credentials - check environment variables");
-		throw new Response(
-			"Alpaca API credentials not configured. Please set ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables.",
-			{ status: 500 }
-		);
-	}
-
-	const headers = {
-		"APCA-API-KEY-ID": ALPACA_API_KEY,
-		"APCA-API-SECRET-KEY": ALPACA_SECRET_KEY,
-	};
-
-	try {
-		// Fetch portfolio history for different timeframes
-		const timeframes = ["1D", "1W", "1M", "3M", "ALL"];
-		const portfolioHistoryPromises = timeframes.map(async (timeframe) => {
-			const period =
-				timeframe === "1D"
-					? "1D"
-					: timeframe === "1W"
-						? "1W"
-						: timeframe === "1M"
-							? "1M"
-							: timeframe === "3M"
-								? "3M"
-								: "all";
-
-			const historyUrl = `${ALPACA_BASE_URL}/v2/account/portfolio/history?period=${period}&timeframe=${
-				timeframe === "1D" ? "5Min" : timeframe === "1W" ? "1H" : "1D"
-			}`;
-
-			const response = await fetch(historyUrl, { headers });
-			if (!response.ok) {
-				const errorText = await response.text();
-				console.error(`Failed to fetch ${timeframe} history:`, response.status, errorText);
-				throw new Error(
-					`Failed to fetch ${timeframe} history: ${response.status} ${errorText}`
-				);
-			}
-			return { timeframe, data: await response.json() };
-		});
-
-		// Fetch current positions
-		const positionsResponse = await fetch(`${ALPACA_BASE_URL}/v2/positions`, { headers });
-		if (!positionsResponse.ok) {
-			const errorText = await positionsResponse.text();
-			console.error("Failed to fetch positions:", positionsResponse.status, errorText);
-			throw new Error(`Failed to fetch positions: ${positionsResponse.status} ${errorText}`);
-		}
-		const positions: Position[] = await positionsResponse.json();
-
-		// Fetch account activities (trades) - max page_size is 100 per Alpaca API
-		// Fetch multiple pages if needed to get up to 500 activities
-		let allActivities: Activity[] = [];
-		let pageToken: string | null = null;
-		const maxActivities = 500;
-		const pageSize = 100;
-
-		while (allActivities.length < maxActivities) {
-			const activitiesUrl: string = pageToken
-				? `${ALPACA_BASE_URL}/v2/account/activities/FILL?page_size=${pageSize}&page_token=${pageToken}`
-				: `${ALPACA_BASE_URL}/v2/account/activities/FILL?page_size=${pageSize}`;
-
-			console.log("Fetching activities from:", activitiesUrl);
-			const activitiesResponse: Response = await fetch(activitiesUrl, { headers });
-
-			if (!activitiesResponse.ok) {
-				const errorText = await activitiesResponse.text();
-				console.error("Failed to fetch activities:", activitiesResponse.status, errorText);
-				throw new Error(
-					`Failed to fetch activities: ${activitiesResponse.status} ${errorText}`
-				);
-			}
-
-			const pageActivities: Activity[] = await activitiesResponse.json();
-			allActivities = [...allActivities, ...pageActivities];
-
-			// Check if there are more pages
-			const nextPageToken: string | null = activitiesResponse.headers.get("x-page-token");
-			if (!nextPageToken || pageActivities.length < pageSize) {
-				// No more pages or last page wasn't full
-				break;
-			}
-			pageToken = nextPageToken;
-		}
-
-		console.log(`Fetched ${allActivities.length} activities`);
-		const activities = allActivities;
-
-		const portfolioHistory = await Promise.all(portfolioHistoryPromises);
-		const portfolioHistoryMap = Object.fromEntries(
-			portfolioHistory.map(({ timeframe, data }) => [timeframe, data])
-		);
-
-		return Response.json({
-			portfolioHistory: portfolioHistoryMap,
-			positions,
-			activities,
-		});
-	} catch (error) {
-		console.error("Error fetching Alpaca data:", error);
-		const errorMessage = error instanceof Error ? error.message : "Unknown error";
-		throw new Response(`Error fetching data: ${errorMessage}`, { status: 500 });
-	}
+interface AccountConfig {
+	id: string;
+	name: string;
+	type: "LIVE" | "PAPER";
+	apiKey: string;
+	secretKey: string;
+	baseUrl: string;
 }
 
+interface AccountData {
+	id: string;
+	name: string;
+	type: "LIVE" | "PAPER";
+	portfolioHistory: Record<string, PortfolioHistoryData>;
+	positions: Position[];
+	activities: Activity[];
+	buyingPower?: number;
+	equity?: number;
+}
+
+// Helper to fetch data for a single account
+// Removed fetchAccountData and loader in favor of API route
+
 export default function Dashboard() {
-	const data = useLoaderData<typeof loader>();
-	const revalidator = useRevalidator();
-	const { portfolioHistory, positions, activities } = data as {
-		portfolioHistory: Record<string, PortfolioHistoryData>;
-		positions: Position[];
-		activities: Activity[];
+	const [accounts, setAccounts] = useState<AccountData[]>([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		const fetchAccounts = async () => {
+			try {
+				const response = await fetch("/api/accounts");
+				if (!response.ok) {
+					throw new Error("Failed to fetch accounts");
+				}
+				const data = await response.json();
+				setAccounts(data.accounts);
+			} catch (err) {
+				console.error("Error fetching accounts:", err);
+				setError("Failed to load account data");
+			} finally {
+				setIsLoading(false);
+			}
+		};
+
+		fetchAccounts();
+	}, []);
+
+	const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+
+	useEffect(() => {
+		if (accounts.length > 0 && !selectedAccountId) {
+			setSelectedAccountId(accounts[0].id);
+		}
+	}, [accounts, selectedAccountId]);
+
+	const currentAccount = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
+
+	// Destructure from the currently selected account
+	const { portfolioHistory, positions, activities } = currentAccount || {
+		portfolioHistory: {},
+		positions: [],
+		activities: [],
 	};
+
+	const revalidator = useRevalidator();
 
 	const [filteredSymbol, setFilteredSymbol] = useState<string>("all");
 	const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>("ALL");
@@ -691,6 +630,31 @@ export default function Dashboard() {
 		});
 	};
 
+	if (isLoading) {
+		return (
+			<div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+				<div className="text-center">
+					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+					<p className="text-gray-600 dark:text-gray-400">Loading account data...</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (error || !accounts || accounts.length === 0) {
+		return (
+			<div className="p-8 text-center">
+				<h1 className="text-2xl font-bold text-red-600 mb-4">
+					{error || "No Accounts Available"}
+				</h1>
+				<p className="text-gray-600">
+					Unable to fetch data for any configured accounts. Please check your API keys and
+					internet connection.
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className="bg-gray-50 dark:bg-gray-900 p-3 md:p-6 overflow-auto max-h-screen">
 			<div className="max-w-7xl mx-auto pb-[4vh]">
@@ -702,6 +666,57 @@ export default function Dashboard() {
 					<p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
 						Portfolio performance and trade history
 					</p>
+				</div>
+				{/* Account Selector */}
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+					{accounts.map((account) => (
+						<button
+							key={account.id}
+							onClick={() => setSelectedAccountId(account.id)}
+							className={`relative hover:cursor-pointer p-4 rounded-lg border text-left transition-all ${
+								selectedAccountId === account.id
+									? "bg-blue-50 dark:bg-blue-900/20 border-blue-500 ring-1 ring-blue-500"
+									: "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700"
+							}`}
+						>
+							<div className="flex justify-between items-start mb-2">
+								<div>
+									<h3 className="font-semibold text-gray-900 dark:text-white">
+										{account.name}
+									</h3>
+									<span
+										className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+											account.type === "LIVE"
+												? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+												: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+										}`}
+									>
+										{account.type}
+									</span>
+								</div>
+								{selectedAccountId === account.id && (
+									<span className="text-blue-600 dark:text-blue-400">
+										<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+											<path
+												fillRule="evenodd"
+												d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+												clipRule="evenodd"
+											/>
+										</svg>
+									</span>
+								)}
+							</div>
+							<div className="mt-2">
+								<div className="text-sm text-gray-500 dark:text-gray-400">Buying Power</div>
+								<div className="text-lg font-bold text-gray-900 dark:text-white">
+									$
+									{(account.buyingPower || 0).toLocaleString(undefined, {
+										minimumFractionDigits: 2,
+									})}
+								</div>
+							</div>
+						</button>
+					))}
 				</div>
 				{/* Combined Filters Row */}
 				<div className="mb-6 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">

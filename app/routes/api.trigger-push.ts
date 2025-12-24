@@ -40,31 +40,87 @@ export const config = {
 
 // --- Helper Functions ---
 
-async function fetchAlpacaPositions() {
-  const ALPACA_API_KEY = process.env.ALPACA_API_KEY;
-  const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY;
-  const ALPACA_BASE_URL = process.env.ALPACA_BASE_URL || "https://paper-api.alpaca.markets";
+interface AccountConfig {
+  id: string;
+  name: string;
+  type: "LIVE" | "PAPER";
+  apiKey: string;
+  secretKey: string;
+  baseUrl: string;
+}
 
-  if (!ALPACA_API_KEY || !ALPACA_SECRET_KEY) {
-    console.error("Alpaca credentials missing");
-    return null;
+function getAccounts(): AccountConfig[] {
+  const accounts: AccountConfig[] = [];
+
+  // 1. Live Account
+  if (process.env.ALPACA_LIVE_API_KEY && process.env.ALPACA_LIVE_SECRET_KEY) {
+    accounts.push({
+      id: "live",
+      name: "Live Account",
+      type: "LIVE",
+      apiKey: process.env.ALPACA_LIVE_API_KEY,
+      secretKey: process.env.ALPACA_LIVE_SECRET_KEY,
+      baseUrl: "https://api.alpaca.markets",
+    });
   }
 
+  // 2. Paper Account (Default)
+  if (process.env.ALPACA_API_KEY && process.env.ALPACA_SECRET_KEY) {
+     const isSameAsLive = process.env.ALPACA_API_KEY === process.env.ALPACA_LIVE_API_KEY;
+     if (!isSameAsLive) {
+        accounts.push({
+          id: "paper-default",
+          name: "Paper Account",
+          type: "PAPER",
+          apiKey: process.env.ALPACA_API_KEY,
+          secretKey: process.env.ALPACA_SECRET_KEY,
+          baseUrl: "https://paper-api.alpaca.markets",
+        });
+     }
+  }
+
+  // 3. Additional Accounts
+  if (process.env.ALPACA_ADDITIONAL_ACCOUNTS) {
+    try {
+      const additional = JSON.parse(process.env.ALPACA_ADDITIONAL_ACCOUNTS);
+      if (Array.isArray(additional)) {
+        additional.forEach((acc, index) => {
+          if (acc.apiKey && acc.secretKey) {
+            const type = acc.type === "LIVE" ? "LIVE" : "PAPER";
+            accounts.push({
+              id: `additional-${index}`,
+              name: acc.name || `Additional ${type} ${index + 1}`,
+              type: type,
+              apiKey: acc.apiKey,
+              secretKey: acc.secretKey,
+              baseUrl: type === "LIVE" ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets",
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.error("Failed to parse ALPACA_ADDITIONAL_ACCOUNTS", e);
+    }
+  }
+  return accounts;
+}
+
+async function fetchAlpacaPositions(account: AccountConfig) {
   try {
-    const response = await fetch(`${ALPACA_BASE_URL}/v2/positions`, {
+    const response = await fetch(`${account.baseUrl}/v2/positions`, {
       headers: {
-        "APCA-API-KEY-ID": ALPACA_API_KEY,
-        "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY,
+        "APCA-API-KEY-ID": account.apiKey,
+        "APCA-API-SECRET-KEY": account.secretKey,
       },
     });
     
     if (!response.ok) {
-      console.error("Alpaca fetch failed:", await response.text());
+      console.error(`Alpaca fetch failed for ${account.name}:`, await response.text());
       return null;
     }
     return await response.json();
   } catch (e) {
-    console.error("Alpaca fetch error:", e);
+    console.error(`Alpaca fetch error for ${account.name}:`, e);
     return null;
   }
 }
@@ -100,7 +156,7 @@ function comparePositions(oldPositions: any[], newPositions: any[]) {
   return changes;
 }
 
-function formatNotification(type: 'opened' | 'closed', position: any) {
+function formatNotification(type: 'opened' | 'closed', position: any, accountName: string) {
   const ticker = getUnderlyingTicker(position.symbol);
   const qty = Math.abs(parseFloat(position.qty));
   
@@ -109,12 +165,12 @@ function formatNotification(type: 'opened' | 'closed', position: any) {
   if (type === 'opened') {
     const price = parseFloat(position.avg_entry_price);
     const costBasis = Math.abs(parseFloat(position.cost_basis));
-    title = `📈 ${ticker} Position Opened`;
+    title = `[${accountName}] 📈 ${ticker} Position Opened`;
     body = `${qty} shares @ $${price.toFixed(2)} (Cost: $${costBasis.toFixed(2)})`;
   } else {
     const pl = parseFloat(position.unrealized_pl || 0);
     const plPct = (parseFloat(position.unrealized_plpc || 0) * 100).toFixed(2);
-    title = `📊 ${ticker} Position Closed`;
+    title = `[${accountName}] 📊 ${ticker} Position Closed`;
     body = `${qty} shares - ${pl >= 0 ? 'Profit' : 'Loss'}: $${Math.abs(pl).toFixed(2)} (${pl >= 0 ? '+' : ''}${plPct}%)`;
   }
 
@@ -167,34 +223,50 @@ async function handleTrigger(request: Request) {
     process.env.VAPID_PRIVATE_KEY
   );
 
-  // 2. Get Positions (Current & Previous)
-  const currentPositions = await fetchAlpacaPositions();
-  if (!currentPositions) {
-    return new Response(JSON.stringify({ error: "Failed to fetch positions" }), { status: 500, headers });
-  }
-
-  const lastPositionsKey = "app:last_positions";
-  const lastPositionsData = await redis.get(lastPositionsKey);
-  const lastPositions = Array.isArray(lastPositionsData) ? lastPositionsData : [];
-
-  // 3. Compare
-  const changes = comparePositions(lastPositions, currentPositions);
-  const hasChanges = changes.opened.length > 0 || changes.closed.length > 0;
-
-  console.log(`[Trigger Push] Changes: ${changes.opened.length} opened, ${changes.closed.length} closed`);
-
-  // 4. Send Notifications
-  const notifications = [];
+  // 2. Process each account
+  const accounts = getAccounts();
+  console.log(`[Trigger Push] Processing ${accounts.length} accounts`);
   
-  for (const p of changes.opened) {
-    notifications.push(formatNotification('opened', p));
-  }
-  for (const p of changes.closed) {
-    notifications.push(formatNotification('closed', p));
+  let totalNotifications = 0;
+  const allNotifications = [];
+
+  for (const account of accounts) {
+    console.log(`[Trigger Push] Checking account: ${account.name}`);
+    
+    // Fetch current positions
+    const currentPositions = await fetchAlpacaPositions(account);
+    if (!currentPositions) {
+      console.error(`[Trigger Push] Skipping ${account.name} due to fetch error`);
+      continue;
+    }
+
+    // Get last positions from Redis
+    const lastPositionsKey = `app:last_positions:${account.id}`;
+    const lastPositionsData = await redis.get(lastPositionsKey);
+    const lastPositions = Array.isArray(lastPositionsData) ? lastPositionsData : [];
+
+    // Compare
+    const changes = comparePositions(lastPositions, currentPositions);
+    
+    if (changes.opened.length > 0 || changes.closed.length > 0) {
+        console.log(`[Trigger Push] ${account.name}: ${changes.opened.length} opened, ${changes.closed.length} closed`);
+        
+        for (const p of changes.opened) {
+            allNotifications.push(formatNotification('opened', p, account.name));
+        }
+        for (const p of changes.closed) {
+            allNotifications.push(formatNotification('closed', p, account.name));
+        }
+    }
+
+    // Update Redis
+    await redis.set(lastPositionsKey, currentPositions);
   }
 
-  if (notifications.length > 0) {
-    for (const note of notifications) {
+  // 3. Send Notifications
+  if (allNotifications.length > 0) {
+    console.log(`[Trigger Push] Sending ${allNotifications.length} notifications`);
+    for (const note of allNotifications) {
       const payload = JSON.stringify(note);
       
       await Promise.all(subscriptions.map((sub: PushSubscription) => 
@@ -203,15 +275,13 @@ async function handleTrigger(request: Request) {
         )
       ));
     }
+    totalNotifications = allNotifications.length;
   }
-
-  // 5. Update Redis
-  await redis.set(lastPositionsKey, currentPositions);
 
   return new Response(JSON.stringify({ 
     success: true, 
-    changes: notifications.length,
-    message: `Sent ${notifications.length} notifications` 
+    changes: totalNotifications,
+    message: `Sent ${totalNotifications} notifications` 
   }), {
     status: 200,
     headers,

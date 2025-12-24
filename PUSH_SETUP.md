@@ -158,7 +158,7 @@ Created `vercel.json`:
 
 - cron-job.org
 
-was setup to trigger api endpoint at 10:05 am every day.
+was setup to trigger api endpoint 10am to 4pm every hour every weekday.
 (3rd party service was chosen since vercel cron cannot guarentee if cron job is executed at 10:05 rather a loose range 10:05 to 11:04)
 
 ## How It Works

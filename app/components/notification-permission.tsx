@@ -42,7 +42,7 @@ export function NotificationPermission() {
 		return (
 			<div className="flex items-center gap-2">
 				<div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-					<span className="text-gray-400 dark:text-gray-500 text-sm">🔔 Loading...</span>
+					<span className="text-gray-400 dark:text-gray-500 text-sm">Loading...</span>
 				</div>
 			</div>
 		);

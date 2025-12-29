@@ -1,4 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
+import { parseEnvJson } from "../utils/env.server";
 
 // Types for Alpaca API responses
 interface PortfolioHistoryData {
@@ -193,11 +194,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		});
 	}
 
-	// 3. Check for Additional Accounts (JSON format)
-	if (process.env.ALPACA_ADDITIONAL_ACCOUNTS) {
-		try {
-			const {accounts:additionalAccounts} = JSON.parse(process.env.ALPACA_ADDITIONAL_ACCOUNTS);
-			if (Array.isArray(additionalAccounts)) {
+	const additionalData = parseEnvJson<any>("ALPACA_ADDITIONAL_ACCOUNTS");
+	if (additionalData) {
+		// Support both { accounts: [...] } and [...] formats
+		const additionalAccounts = Array.isArray(additionalData)
+			? additionalData
+			: additionalData.accounts;
+
+		if (Array.isArray(additionalAccounts)) {
 				additionalAccounts.forEach((acc, index) => {
 					const type = acc.type === "LIVE" ? "LIVE" : "PAPER";
 					addAccount({
@@ -213,18 +217,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					});
 				});
 			}
-		} catch (error) {
-			console.error("Error parsing ALPACA_ADDITIONAL_ACCOUNTS:", error);
-		}
 	}
 
 	if (accountsToFetch.length === 0) {
 		return Response.json(
-			{ error: "No Alpaca accounts configured" },
-			{ status: 500 }
+			{ error: "No Alpaca accounts configured" }
 		);
 	}
-
+	
 	// Fetch all accounts in parallel
 	const results = await Promise.all(accountsToFetch.map(fetchAccountData));
 	const accounts = results.filter((a): a is AccountData => a !== null);

@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import { parseEnvJson } from "../utils/env.server";
 import webpush, { PushSubscription } from "web-push";
 import { getSubscriptions } from "~/routes/api.subscribe";
 import { Redis } from "@upstash/redis";
@@ -80,9 +81,11 @@ function getAccounts(): AccountConfig[] {
   }
 
   // 3. Additional Accounts
-  if (process.env.ALPACA_ADDITIONAL_ACCOUNTS) {
-    try {
-      const additional = JSON.parse(process.env.ALPACA_ADDITIONAL_ACCOUNTS);
+  const additionalData = parseEnvJson<any>("ALPACA_ADDITIONAL_ACCOUNTS");
+  if (additionalData) {
+      // Support both { accounts: [...] } and [...] formats
+      const additional = Array.isArray(additionalData) ? additionalData : additionalData.accounts;
+
       if (Array.isArray(additional)) {
         additional.forEach((acc, index) => {
           if (acc.apiKey && acc.secretKey) {
@@ -98,9 +101,6 @@ function getAccounts(): AccountConfig[] {
           }
         });
       }
-    } catch (e) {
-      console.error("Failed to parse ALPACA_ADDITIONAL_ACCOUNTS", e);
-    }
   }
   return accounts;
 }

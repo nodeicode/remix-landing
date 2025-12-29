@@ -1,7 +1,7 @@
 // Service Worker for Trading Dashboard PWA
-// Version: 2.0.0 - Simplified for Server-Side Logic
+// Version: 2.1.0 - Network First for HTML
 
-const CACHE_NAME = 'trading-dashboard-v2';
+const CACHE_NAME = 'trading-dashboard-v2.1';
 const ASSETS_TO_CACHE = [
 	'/',
 	'/favicon.ico',
@@ -45,6 +45,27 @@ self.addEventListener('fetch', (event) => {
 	// API requests: Network only
 	if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
 		event.respondWith(fetch(event.request));
+		return;
+	}
+
+	// HTML requests (Navigation): Network First, fall back to cache
+	// This ensures the user always gets the latest version of the app shell
+	if (event.request.mode === 'navigate' || event.request.headers.get('accept').includes('text/html')) {
+		event.respondWith(
+			fetch(event.request)
+				.then((response) => {
+					// Update the cache with the new version
+					const responseToCache = response.clone();
+					caches.open(CACHE_NAME).then((cache) => {
+						cache.put(event.request, responseToCache);
+					});
+					return response;
+				})
+				.catch(() => {
+					// Fallback to cache if network fails
+					return caches.match(event.request);
+				})
+		);
 		return;
 	}
 

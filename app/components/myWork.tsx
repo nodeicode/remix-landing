@@ -20,7 +20,7 @@ export default function myWork({ darkMode }: { darkMode: boolean }) {
 				boundaries of what is computationally possible.
 			</p>
 			<p className="lead">
-				Stack: C++, Python, Compiler Optimizations, FIX Protocol, Derivative Pricing
+				Stack: C++, Python, Compiler Optimizations, FIX Protocol, Terraform, AWS
 			</p>
 
 			<h2>
@@ -36,7 +36,7 @@ export default function myWork({ darkMode }: { darkMode: boolean }) {
 				research proposals.
 			</p>
 			<p className="lead">
-				Stack: Streamlit, Python, MySQL, Langchain, AWS Bedrock, Hugging Face, AWS{" "}
+				Stack: Streamlit, Python, MySQL, Langchain, AWS Bedrock, Hugging Face, AWS
 			</p>
 
 			<h2>

@@ -28,11 +28,16 @@ export default function Index() {
 			<h1>I'm Lohit Aryan</h1>
 			<p className="lead">{leadQuote}</p>
 			<p>
+				Architecting high-performance trading infrastructure at Eleftheria Capital. I believe
+				in the power of autonomous systems and mathematical rigor to solve complex market
+				challenges, bridging the gap between theoretical alpha and real-world execution.
+			</p>
+			<p>
 				Here is my{" "}
 				<a rel="noopener" target="_blank" href="https://github.com/nodeicode">
 					Github
 				</a>{" "}
-				its been quiet for a while there, <br />
+				for more info on my projects, <br />
 				<a rel="noopener" target="_blank" href="https://twitter.com/nodeicode">
 					Twitter
 				</a>{" "}
@@ -40,7 +45,7 @@ export default function Index() {
 				<a rel="noopener" target="_blank" href="https://www.linkedin.com/in/lohit-aryan/">
 					Linkedin
 				</a>{" "}
-				if that's your thing
+				for everything else.
 			</p>
 			{/* Keep Scrolling Indicator */}
 			<motion.div

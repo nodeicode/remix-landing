@@ -22,8 +22,6 @@ const NavIcon = (props: {
 				return <UserIcon {...p} />;
 			case 1:
 				return <BriefcaseIcon {...p} />;
-			case 2:
-				return <BeakerIcon {...p} />;
 		}
 	};
 
@@ -34,14 +32,12 @@ const NavIcon = (props: {
 				return "About";
 			case 1:
 				return "Work";
-			case 2:
-				return "Projects";
 		}
 	};
 
 	const scrollToSection = () => {
 		if (!active) {
-			const sectionIds = ["about", "work", "projects"];
+			const sectionIds = ["about", "work"];
 			const targetId = sectionIds[props.currentIcon];
 			const element = document.getElementById(targetId);
 			if (element) {
@@ -97,12 +93,12 @@ export default function Nav({
 				className: `ri-moon-fill h-12 w-8 transition-colors hover:cursor-pointer hover:text-gray ${getTextColor()}`,
 				onClick: () => toggleTheme(),
 			})}
-			<Link
+			{/* <Link
 				to="/dashboard"
 				className="flex h-8 md:h-12 w-8 md:w-12 items-center justify-center rounded-full outline-2 outline-dark transition-all duration-[450ms] hover:cursor-pointer hover:text-gray hover:outline-gray dark:outline-gray-light dark:hover:outline-gray"
 			>
 				<ChartBarIcon className={`h-12 w-6 md:w-8 ${getTextColor()} text-inherit`} />
-			</Link>
+			</Link> */}
 			<NavIcon
 				textColor={getTextColor()}
 				activeIcon={activeIcon}
@@ -116,13 +112,6 @@ export default function Nav({
 				setIcon={setIcon}
 				onManualScroll={onManualScroll}
 				currentIcon={1}
-			/>
-			<NavIcon
-				textColor={getTextColor()}
-				activeIcon={activeIcon}
-				setIcon={setIcon}
-				onManualScroll={onManualScroll}
-				currentIcon={2}
 			/>
 		</div>
 	);

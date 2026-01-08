@@ -5,7 +5,6 @@ import { useInView } from "react-intersection-observer";
 // Import your existing component content
 import IndexContent from "../components/about";
 import MyWorkContent from "../components/myWork";
-import ProjectsContent from "../components/projects";
 import { useDarkMode } from "~/root";
 import Nav from "../components/nav";
 
@@ -50,7 +49,6 @@ export default function App() {
 	const [sectionVisibility, setSectionVisibility] = useState({
 		about: { inView: false, ratio: 0 },
 		work: { inView: false, ratio: 0 },
-		projects: { inView: false, ratio: 0 },
 	});
 
 	const handleSectionView =
@@ -67,7 +65,7 @@ export default function App() {
 	useEffect(() => {
 		if (isManualScrolling) return;
 
-		const sections = ["about", "work", "projects"];
+		const sections = ["about", "work"];
 		let maxRatio = 0;
 		let activeIndex = 0;
 
@@ -101,7 +99,6 @@ export default function App() {
 			setSectionVisibility({
 				about: { inView: false, ratio: 0 },
 				work: { inView: false, ratio: 0 },
-				projects: { inView: false, ratio: 0 },
 			});
 		}, 1500); // Increased timeout for smoother transition
 	};
@@ -134,14 +131,6 @@ export default function App() {
 						isManualScrolling={isManualScrolling}
 					>
 						<MyWorkContent {...{ darkMode }} />
-					</SectionWrapper>
-					<SectionWrapper
-						id="projects"
-						onInView={handleSectionView("projects")}
-						title="Projects"
-						isManualScrolling={isManualScrolling}
-					>
-						<ProjectsContent />
 					</SectionWrapper>
 				</motion.div>
 			</div>

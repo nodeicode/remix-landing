@@ -1,7 +1,7 @@
 export default function myWork({ darkMode }: { darkMode: boolean }) {
 	return (
 		<div className="animate-fade-in-fast">
-			<h2>
+			{/* <h2>
 				Founder @{" "}
 				<a rel="noopener" target="_blank" href="https://www.elefcap.com">
 					Eleftheria Capital
@@ -21,7 +21,7 @@ export default function myWork({ darkMode }: { darkMode: boolean }) {
 			</p>
 			<p className="lead">
 				Stack: C++, Python, Compiler Optimizations, FIX Protocol, Terraform, AWS
-			</p>
+			</p> */}
 
 			<h2>
 				Machine learning Graduate Engineer @{" "}

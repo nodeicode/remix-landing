@@ -1,3 +1,7 @@
+import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { Card, CardContent } from "./ui/card";
+
 interface Trade {
 	id: string;
 	date: Date;
@@ -22,202 +26,149 @@ interface TradesTableProps {
 	};
 }
 
-export function TradesTable({ trades, onSort, sortConfig, metrics }: TradesTableProps) {
-	const getSortIcon = (key: string) => {
-		if (sortConfig?.key !== key) {
-			return (
-				<svg
-					className="w-4 h-4 opacity-30"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						strokeWidth={2}
-						d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-					/>
-				</svg>
-			);
-		}
+export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
+	const SortIcon = ({ column }: { column: string }) => {
+		if (sortConfig?.key !== column) return <ArrowUpDown className="w-3.5 h-3.5 opacity-30" />;
 		return sortConfig.direction === "asc" ? (
-			<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-			</svg>
+			<ArrowUp className="w-3.5 h-3.5" />
 		) : (
-			<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path
-					strokeLinecap="round"
-					strokeLinejoin="round"
-					strokeWidth={2}
-					d="M19 9l-7 7-7-7"
-				/>
-			</svg>
+			<ArrowDown className="w-3.5 h-3.5" />
 		);
 	};
 
-	return (
-		<div>
-			<div className="overflow-x-auto -mx-3 md:mx-0">
-				<table className="w-full min-w-full">
-					<thead className="bg-gray-50 dark:bg-gray-700">
-						<tr>
-							<th
-								onClick={() => onSort("date")}
-								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									Date
-									{getSortIcon("date")}
-								</div>
-							</th>
-							<th
-								onClick={() => onSort("underlyingTicker")}
-								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									Ticker
-									{getSortIcon("underlyingTicker")}
-								</div>
-							</th>
-							<th
-								onClick={() => onSort("quantity")}
-								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									Qty
-									{getSortIcon("quantity")}
-								</div>
-							</th>
-							<th
-								onClick={() => onSort("buyPrice")}
-								className="hidden md:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									Buy Price
-									{getSortIcon("buyPrice")}
-								</div>
-							</th>
-							<th
-								onClick={() => onSort("sellPrice")}
-								className="hidden md:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									Sell Price
-									{getSortIcon("sellPrice")}
-								</div>
-							</th>
-							<th
-								onClick={() => onSort("buyValue")}
-								className="hidden lg:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									Buy Value
-									{getSortIcon("buyValue")}
-								</div>
-							</th>
-							<th
-								onClick={() => onSort("sellValue")}
-								className="hidden lg:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									Sell Value
-									{getSortIcon("sellValue")}
-								</div>
-							</th>
-							<th
-								onClick={() => onSort("pnl")}
-								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									P&L
-									{getSortIcon("pnl")}
-								</div>
-							</th>
-							<th
-								onClick={() => onSort("pnlPercent")}
-								className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-							>
-								<div className="flex items-center gap-1 md:gap-2">
-									P&L %{getSortIcon("pnlPercent")}
-								</div>
-							</th>
-						</tr>
-					</thead>
-					<tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-						{trades.length === 0 ? (
-							<tr>
-								<td
-									colSpan={9}
-									className="px-3 md:px-6 py-8 text-center text-xs md:text-sm text-gray-500 dark:text-gray-400"
-								>
-									No trades found
-								</td>
-							</tr>
-						) : (
-							trades.map((trade) => (
-								<tr
-									key={trade.id}
-									className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-								>
-									<td className="px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
-										<div className="md:hidden">{trade.date.toLocaleDateString()}</div>
-										<div className="hidden md:block">
-											{trade.date.toLocaleDateString()} {trade.date.toLocaleTimeString()}
-										</div>
-									</td>
-									<td className="px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold text-gray-900 dark:text-white">
-										{trade.underlyingTicker}
-									</td>
-									<td className="px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
-										{trade.quantity.toLocaleString()}
-									</td>
-									<td className="hidden md:table-cell px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
-										${trade.buyPrice.toFixed(2)}
-									</td>
-									<td className="hidden md:table-cell px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
-										${trade.sellPrice.toFixed(2)}
-									</td>
-									<td className="hidden lg:table-cell px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
-										$
-										{trade.buyValue.toLocaleString(undefined, {
-											minimumFractionDigits: 1,
-											maximumFractionDigits: 4,
-										})}
-									</td>
-									<td className="hidden lg:table-cell px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm text-gray-900 dark:text-white">
-										$
-										{trade.sellValue.toLocaleString(undefined, {
-											minimumFractionDigits: 1,
-											maximumFractionDigits: 4,
-										})}
-									</td>
-									<td
-										className={`px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold ${
-											trade.pnl >= 0 ? "text-green-600" : "text-red-600"
-										}`}
-									>
-										{trade.pnl >= 0 ? "+" : ""}$
-										{trade.pnl.toLocaleString(undefined, {
-											minimumFractionDigits: 2,
-											maximumFractionDigits: 2,
-										})}
-									</td>
-									<td
-										className={`px-3 md:px-6 py-2 md:py-4 whitespace-nowrap text-xs md:text-sm font-semibold ${
-											trade.pnlPercent >= 0 ? "text-green-600" : "text-red-600"
-										}`}
-									>
-										{trade.pnlPercent >= 0 ? "+" : ""}
-										{trade.pnlPercent.toFixed(2)}%
-									</td>
-								</tr>
-							))
-						)}
-					</tbody>
-				</table>
+	const SortableHead = ({
+		column,
+		label,
+		className,
+	}: {
+		column: string;
+		label: string;
+		className?: string;
+	}) => (
+		<TableHead
+			className={`cursor-pointer select-none hover:text-zinc-200 transition-colors ${className ?? ""}`}
+			onClick={() => onSort(column)}
+		>
+			<div className="flex items-center gap-1.5">
+				{label}
+				<SortIcon column={column} />
 			</div>
-		</div>
+		</TableHead>
+	);
+
+	return (
+		<Card>
+			<CardContent className="p-0">
+				<div className="overflow-x-auto">
+					<Table>
+						<TableHeader>
+							<TableRow className="border-zinc-800 hover:bg-transparent">
+								<SortableHead column="date" label="Date" className="pl-6" />
+								<SortableHead column="underlyingTicker" label="Ticker" />
+								<SortableHead column="quantity" label="Qty" />
+								<SortableHead
+									column="buyPrice"
+									label="Buy Price"
+									className="hidden md:table-cell"
+								/>
+								<SortableHead
+									column="sellPrice"
+									label="Sell Price"
+									className="hidden md:table-cell"
+								/>
+								<SortableHead
+									column="buyValue"
+									label="Buy Value"
+									className="hidden lg:table-cell"
+								/>
+								<SortableHead
+									column="sellValue"
+									label="Sell Value"
+									className="hidden lg:table-cell"
+								/>
+								<SortableHead column="pnl" label="P&L" />
+								<SortableHead column="pnlPercent" label="P&L %" />
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{trades.length === 0 ? (
+								<TableRow>
+									<TableCell colSpan={9} className="py-10 text-center text-zinc-500">
+										No trades found
+									</TableCell>
+								</TableRow>
+							) : (
+								trades.map((trade) => (
+									<TableRow key={trade.id}>
+										<TableCell className="pl-6 text-zinc-300 text-xs whitespace-nowrap">
+											<div className="md:hidden">{trade.date.toLocaleDateString()}</div>
+											<div className="hidden md:block">
+												{trade.date.toLocaleDateString()}{" "}
+												<span className="text-zinc-500">
+													{trade.date.toLocaleTimeString()}
+												</span>
+											</div>
+										</TableCell>
+										<TableCell className="font-semibold text-zinc-50">
+											{trade.underlyingTicker}
+										</TableCell>
+										<TableCell className="text-zinc-300">
+											{trade.quantity.toLocaleString()}
+										</TableCell>
+										<TableCell className="hidden md:table-cell text-zinc-300">
+											${trade.buyPrice.toFixed(2)}
+										</TableCell>
+										<TableCell className="hidden md:table-cell text-zinc-300">
+											${trade.sellPrice.toFixed(2)}
+										</TableCell>
+										<TableCell className="hidden lg:table-cell text-zinc-300">
+											$
+											{trade.buyValue.toLocaleString(undefined, {
+												minimumFractionDigits: 2,
+												maximumFractionDigits: 2,
+											})}
+										</TableCell>
+										<TableCell className="hidden lg:table-cell text-zinc-300">
+											$
+											{trade.sellValue.toLocaleString(undefined, {
+												minimumFractionDigits: 2,
+												maximumFractionDigits: 2,
+											})}
+										</TableCell>
+										<TableCell>
+											<span
+												className={
+													trade.pnl >= 0
+														? "text-emerald-400 font-semibold"
+														: "text-red-400 font-semibold"
+												}
+											>
+												{trade.pnl >= 0 ? "+" : ""}$
+												{trade.pnl.toLocaleString(undefined, {
+													minimumFractionDigits: 2,
+													maximumFractionDigits: 2,
+												})}
+											</span>
+										</TableCell>
+										<TableCell>
+											<span
+												className={
+													trade.pnlPercent >= 0
+														? "text-emerald-400 font-semibold"
+														: "text-red-400 font-semibold"
+												}
+											>
+												{trade.pnlPercent >= 0 ? "+" : ""}
+												{trade.pnlPercent.toFixed(2)}%
+											</span>
+										</TableCell>
+									</TableRow>
+								))
+							)}
+						</TableBody>
+					</Table>
+				</div>
+			</CardContent>
+		</Card>
 	);
 }

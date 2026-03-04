@@ -28,9 +28,15 @@ export default function Index() {
 			<h1>I'm Lohit Aryan</h1>
 			<p className="lead">{leadQuote}</p>
 			<p>
-				Architecting high-performance trading infrastructure at Eleftheria Capital. I believe
+				Performance-driven Software Engineer with professional experience optimizing
+				high-traffic backend microservices and an MS in Applied Machine Learning. Highly adept
+				at bridging backend infrastructure with quantitative systems, demonstrated by
+				engineering a low-latency C++ execution engine and full-lifecycle MLOps pipelines for
+				algorithmic trading models.
+				{/* Architecting high-performance trading infrastructure at Eleftheria Capital. I believe
 				in the power of autonomous systems and mathematical rigor to solve complex market
 				challenges, bridging the gap between theoretical alpha and real-world execution.
+				*/}
 			</p>
 			<p>
 				Here is my{" "}

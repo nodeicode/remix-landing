@@ -61,6 +61,7 @@ interface AccountData {
 	portfolioHistory: Record<string, PortfolioHistoryData>;
 	positions: Position[];
 	activities: Activity[];
+	legToParentOrder: Record<string, string>;
 	buyingPower?: number;
 	equity?: number;
 }
@@ -108,6 +109,25 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 		const positionsResponse = await fetch(`${baseUrl}/v2/positions`, { headers });
 		const positions: Position[] = positionsResponse.ok ? await positionsResponse.json() : [];
 
+		// Fetch closed orders with nested=true to map multi-leg child orders → parent order
+		const legToParentOrder: Record<string, string> = {};
+		try {
+			const ordersUrl = `${baseUrl}/v2/orders?status=closed&nested=true&limit=500`;
+			const ordersResponse = await fetch(ordersUrl, { headers });
+			if (ordersResponse.ok) {
+				const orders: any[] = await ordersResponse.json();
+				for (const order of orders) {
+					if (Array.isArray(order.legs)) {
+						for (const leg of order.legs) {
+							legToParentOrder[leg.id] = order.id;
+						}
+					}
+				}
+			}
+		} catch (e) {
+			console.error(`Error fetching orders for account ${name}:`, e);
+		}
+
 		// Fetch activities
 		let allActivities: Activity[] = [];
 		let pageToken: string | null = null;
@@ -144,6 +164,7 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 			portfolioHistory: portfolioHistoryMap,
 			positions,
 			activities: allActivities,
+			legToParentOrder,
 			buyingPower: accountInfo ? parseFloat(accountInfo.buying_power) : 0,
 			equity: accountInfo ? parseFloat(accountInfo.equity) : 0,
 		};

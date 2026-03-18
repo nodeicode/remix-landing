@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRevalidator } from "react-router";
 import {
+	Menu,
+	X,
 	Bell,
 	RefreshCw,
 	TrendingUp,
@@ -88,6 +90,7 @@ interface AccountData {
 	portfolioHistory: Record<string, PortfolioHistoryData>;
 	positions: Position[];
 	activities: Activity[];
+	legToParentOrder: Record<string, string>;
 	buyingPower?: number;
 	equity?: number;
 }
@@ -97,30 +100,45 @@ interface AccountData {
 
 export default function Dashboard() {
 	const [accounts, setAccounts] = useState<AccountData[]>([]);
+	const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-	const fetchAccounts = useCallback(async () => {
+	const fetchAccounts = useCallback(async (isBackground = false) => {
+		if (!isBackground) {
+			setError(null);
+		}
 		try {
 			const response = await fetch("/api/accounts");
 			if (!response.ok) {
-				throw new Error("Failed to fetch accounts");
+				throw new Error(`Failed to fetch accounts (${response.status})`);
 			}
 			const data = await response.json();
+			if (!data.accounts) {
+				throw new Error(data.error ?? "No accounts in response");
+			}
 			setAccounts(data.accounts);
+			setError(null);
 			setLastUpdated(new Date());
 		} catch (err) {
 			console.error("Error fetching accounts:", err);
-			setError("Failed to load account data");
+			// On background polls, preserve stale data — only show the error
+			// screen when we have nothing to display yet.
+			setAccounts((prev) => {
+				if (prev.length === 0) {
+					setError("Failed to load account data");
+				}
+				return prev;
+			});
 		} finally {
 			setIsLoading(false);
 		}
 	}, []);
 
 	useEffect(() => {
-		fetchAccounts();
-		const interval = setInterval(fetchAccounts, 12000);
+		fetchAccounts(false);
+		const interval = setInterval(() => fetchAccounts(true), 12000);
 		return () => clearInterval(interval);
 	}, [fetchAccounts]);
 
@@ -135,10 +153,11 @@ export default function Dashboard() {
 	const currentAccount = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
 
 	// Destructure from the currently selected account
-	const { portfolioHistory, positions, activities } = currentAccount || {
+	const { portfolioHistory, positions, activities, legToParentOrder } = currentAccount || {
 		portfolioHistory: {},
 		positions: [],
 		activities: [],
+		legToParentOrder: {},
 	};
 
 	const revalidator = useRevalidator();
@@ -389,29 +408,73 @@ export default function Dashboard() {
 		const realizedTrades: any[] = [];
 
 		Object.entries(groupedBySymbol).forEach(([symbol, symbolActivities]) => {
+			// Options contracts represent 100 shares; equities have a multiplier of 1
+			const isOption = /^[A-Z]+\d{6}[CP]/.test(symbol);
+			const multiplier = isOption ? 100 : 1;
+
 			// Sort by time (oldest first) for FIFO
 			const sorted = [...symbolActivities].sort(
 				(a, b) =>
 					new Date(a.transaction_time).getTime() - new Date(b.transaction_time).getTime(),
 			);
 
-			// Queue of buy orders (FIFO)
+			// FIFO queues for both long and short positions
 			const buyQueue: Array<{ price: number; qty: number; date: Date }> = [];
+			const sellQueue: Array<{ price: number; qty: number; date: Date; orderId?: string }> =
+				[];
 
 			sorted.forEach((activity) => {
 				const price = parseFloat(activity.price);
 				const qty = parseFloat(activity.qty);
 				const date = new Date(activity.transaction_time);
+				const resolvedOrderId =
+					legToParentOrder[activity.order_id] || activity.order_id || undefined;
 
 				if (activity.side === "buy") {
-					// Add to buy queue
-					buyQueue.push({ price, qty, date });
+					// First try to close a short position (match against sellQueue)
+					let remainingQty = qty;
+					let totalRevenue = 0;
+					let totalQty = 0;
+
+					while (remainingQty > 0 && sellQueue.length > 0) {
+						const sellOrder = sellQueue[0];
+						const qtyToMatch = Math.min(remainingQty, sellOrder.qty);
+						totalRevenue += qtyToMatch * sellOrder.price * multiplier;
+						totalQty += qtyToMatch;
+						remainingQty -= qtyToMatch;
+						sellOrder.qty -= qtyToMatch;
+						if (sellOrder.qty === 0) sellQueue.shift();
+					}
+
+					if (totalQty > 0) {
+						// Short position closed: sellValue = premium received, buyValue = cost to close
+						const sellValue = totalRevenue;
+						const buyValue = price * multiplier * totalQty;
+						const pnl = sellValue - buyValue;
+						const pnlPercent = buyValue !== 0 ? (pnl / Math.abs(buyValue)) * 100 : 0;
+
+						realizedTrades.push({
+							id: activity.id,
+							date,
+							symbol,
+							underlyingTicker: getUnderlyingTicker(symbol),
+							quantity: totalQty,
+							buyPrice: price,
+							sellPrice: totalRevenue / totalQty / multiplier,
+							buyValue,
+							sellValue,
+							pnl,
+							pnlPercent,
+							orderId: resolvedOrderId,
+						});
+					}
+
+					// Leftover qty opens a new long position
+					if (remainingQty > 0) {
+						buyQueue.push({ price, qty: remainingQty, date });
+					}
 				} else if (activity.side === "sell") {
-					// Match with buy orders using FIFO
-					/*
-						Match sell orders with buy orders using FIFO
-						i.e oldest buys get sold first and we calculate realized P&L based on that
-					*/
+					// First try to close a long position (match against buyQueue)
 					let remainingQty = qty;
 					let totalCost = 0;
 					let totalQty = 0;
@@ -419,25 +482,20 @@ export default function Dashboard() {
 					while (remainingQty > 0 && buyQueue.length > 0) {
 						const buyOrder = buyQueue[0];
 						const qtyToMatch = Math.min(remainingQty, buyOrder.qty);
-
-						totalCost += qtyToMatch * buyOrder.price * 100; // Options are typically for 100 shares
+						totalCost += qtyToMatch * buyOrder.price * multiplier;
 						totalQty += qtyToMatch;
 						remainingQty -= qtyToMatch;
 						buyOrder.qty -= qtyToMatch;
-
-						if (buyOrder.qty === 0) {
-							buyQueue.shift();
-						}
+						if (buyOrder.qty === 0) buyQueue.shift();
 					}
 
-					// Calculate P&L for this sell
-					// since this P&L is for options we need to multiple by 100
 					if (totalQty > 0) {
-						const avgBuyPrice = totalCost / totalQty;
-						const sellValue = price * 100 * totalQty;
+						// Long position closed
 						const buyValue = totalCost;
+						const sellValue = price * multiplier * totalQty;
+						const avgBuyPrice = totalCost / totalQty / multiplier;
 						const pnl = sellValue - buyValue;
-						const pnlPercent = (pnl / buyValue) * 100;
+						const pnlPercent = buyValue !== 0 ? (pnl / buyValue) * 100 : 0;
 
 						realizedTrades.push({
 							id: activity.id,
@@ -446,20 +504,50 @@ export default function Dashboard() {
 							underlyingTicker: getUnderlyingTicker(symbol),
 							quantity: totalQty,
 							buyPrice: avgBuyPrice,
-							sellPrice: price * 100, // Options are typically for 100 shares
+							sellPrice: price,
 							buyValue,
 							sellValue,
 							pnl,
 							pnlPercent,
+							orderId: resolvedOrderId,
 						});
+					}
+
+					// Leftover qty opens a new short position
+					if (remainingQty > 0) {
+						sellQueue.push({ price, qty: remainingQty, date, orderId: resolvedOrderId });
 					}
 				}
 			});
 		});
 
+		// Consolidate partial fills: same order_id + same symbol → single trade with aggregated values.
+		// Equity orders commonly fill in multiple pieces at slightly different prices.
+		const consolidatedMap = new Map<string, any>();
+		for (const trade of realizedTrades) {
+			const key = trade.orderId
+				? `${trade.orderId}::${trade.symbol}`
+				: `standalone::${trade.id}`;
+			if (!consolidatedMap.has(key)) {
+				consolidatedMap.set(key, { ...trade });
+			} else {
+				const existing = consolidatedMap.get(key);
+				existing.quantity += trade.quantity;
+				existing.buyValue += trade.buyValue;
+				existing.sellValue += trade.sellValue;
+				existing.pnl = existing.sellValue - existing.buyValue;
+				existing.pnlPercent =
+					existing.buyValue !== 0 ? (existing.pnl / existing.buyValue) * 100 : 0;
+				const mult = /^[A-Z]+\d{6}[CP]/.test(trade.symbol) ? 100 : 1;
+				existing.buyPrice = existing.buyValue / existing.quantity / mult;
+				existing.sellPrice = existing.sellValue / existing.quantity / mult;
+				if (trade.date > existing.date) existing.date = trade.date;
+			}
+		}
+
 		// Sort by date (newest first)
-		return realizedTrades.sort((a, b) => b.date.getTime() - a.date.getTime());
-	}, [activities]);
+		return [...consolidatedMap.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
+	}, [activities, legToParentOrder]);
 
 	// Filter trades by underlying ticker and timeframe
 	const filteredTrades = useMemo(() => {
@@ -688,9 +776,22 @@ export default function Dashboard() {
 	}
 
 	return (
-		<div className="flex h-screen bg-zinc-950 overflow-hidden">
+		<div className="relative flex h-screen bg-zinc-950 overflow-hidden">
+			{/* ── Mobile sidebar overlay ── */}
+			{isSidebarOpen && (
+				<div
+					className="fixed inset-0 bg-black/60 z-20 sm:hidden"
+					onClick={() => setIsSidebarOpen(false)}
+				/>
+			)}
+
 			{/* ── Left Sidebar ── */}
-			<aside className="w-52 flex-none flex flex-col border-r border-zinc-800 bg-zinc-950 overflow-y-auto">
+			<aside
+				className={cn(
+					"fixed sm:relative inset-y-0 left-0 z-30 w-64 sm:w-52 flex-none flex flex-col border-r border-zinc-800 bg-zinc-950 overflow-y-auto transition-transform duration-300 ease-in-out",
+					isSidebarOpen ? "translate-x-0" : "-translate-x-full sm:translate-x-0",
+				)}
+			>
 				{/* Brand */}
 				<div className="px-4 pt-5 pb-4 border-b border-zinc-800">
 					<h1 className="text-base font-bold text-zinc-50 tracking-tight">
@@ -806,8 +907,23 @@ export default function Dashboard() {
 			</aside>
 
 			{/* ── Main content ── */}
-			<main className="flex-1 overflow-y-auto">
-				<div className="max-w-6xl mx-auto p-5 pb-12 space-y-6">
+			<main className="flex-1 overflow-y-auto flex flex-col min-w-0">
+				{/* Mobile top bar */}
+				<div className="sm:hidden sticky top-0 z-10 flex items-center gap-3 px-4 py-3 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 flex-none">
+					<button
+						onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+						className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+					>
+						{isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+					</button>
+					<h1 className="text-sm font-bold text-zinc-50 truncate">Trading Dashboard</h1>
+					{lastUpdated && (
+						<span className="ml-auto text-[10px] text-zinc-500 tabular-nums whitespace-nowrap">
+							{lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+						</span>
+					)}
+				</div>
+				<div className="max-w-6xl mx-auto w-full p-3 sm:p-5 pb-12 space-y-4 sm:space-y-6">
 					{/* ── Toolbar ── */}
 					<Card>
 						<CardContent className="p-3">
@@ -877,7 +993,7 @@ export default function Dashboard() {
 						<h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
 							Portfolio Summary
 						</h2>
-						<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 							<Card>
 								<CardContent className="p-4">
 									<p className="text-xs text-zinc-500 mb-1">
@@ -915,8 +1031,8 @@ export default function Dashboard() {
 											portfolioMetrics.pnl >= 0 ? "text-emerald-400" : "text-red-400",
 										)}
 									>
-										{portfolioMetrics.pnl >= 0 ? "+" : ""}$
-										{portfolioMetrics.pnl.toLocaleString(undefined, {
+										{portfolioMetrics.pnl >= 0 ? "+" : "-"}$
+										{Math.abs(portfolioMetrics.pnl).toLocaleString(undefined, {
 											minimumFractionDigits: 2,
 											maximumFractionDigits: 2,
 										})}

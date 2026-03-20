@@ -28,7 +28,7 @@ export const meta: MetaFunction = () => {
 		{ name: "apple-mobile-web-app-capable", content: "yes" },
 		{ name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
 		{ name: "apple-mobile-web-app-title", content: "Trading Dashboard" },
-		{ name: "theme-color", content: "#2563eb" },
+		{ name: "theme-color", content: "#09090b" },
 		// iOS Splash Screens
 		{ name: "apple-touch-fullscreen", content: "yes" },
 	];
@@ -55,11 +55,7 @@ export default function App() {
 				<Analytics />
 				<SpeedInsights />
 			</head>
-			<body
-				className={`${
-					darkMode ? "dark" : ""
-				} max-w-screen max-h-screen overflow-hidden pt-[4vh] lg:pt-[2vh]  bg-light dark:bg-dark transition-all`}
-			>
+			<body className={`${darkMode ? "dark" : ""} bg-light dark:bg-dark transition-all`}>
 				{/* <StarsBackground
 					starColor={darkMode ? "#fff" : "#000"}
 					className="absolute inset-0 flex items-center justify-center rounded-xl"

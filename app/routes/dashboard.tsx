@@ -776,7 +776,7 @@ export default function Dashboard() {
 	}
 
 	return (
-		<div className="relative flex h-screen bg-zinc-950 overflow-hidden">
+		<div className="fixed inset-0 flex bg-zinc-950 overflow-hidden">
 			{/* ── Mobile sidebar overlay ── */}
 			{isSidebarOpen && (
 				<div

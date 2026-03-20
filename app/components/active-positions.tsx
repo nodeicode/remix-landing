@@ -397,7 +397,7 @@ export function ActivePositions({ positions, getUnderlyingTicker }: ActivePositi
 		<Card>
 			<CardContent className="p-0">
 				<div className="overflow-x-auto">
-					<table className="w-full min-w-[560px] text-sm">
+					<table className="w-full text-sm">
 						<thead>
 							<tr className="border-b border-zinc-800">
 								<th className="text-left px-4 py-3 text-xs font-medium text-zinc-400 w-8" />
@@ -560,7 +560,7 @@ export function ActivePositions({ positions, getUnderlyingTicker }: ActivePositi
 													style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
 												>
 													<div className="overflow-hidden">
-														<table className="w-full min-w-[560px] text-sm">
+														<table className="w-full text-sm">
 															<tbody>
 																{group.legs.map((position) => {
 																	const parsedOpt = parseOptionSymbol(position.symbol);

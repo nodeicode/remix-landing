@@ -11,6 +11,7 @@ import {
 	Shield,
 	Activity,
 	Target,
+	Loader2,
 } from "lucide-react";
 import { TradesTable } from "../components/trades-table";
 import { ActivePositions } from "../components/active-positions";
@@ -392,161 +393,48 @@ export default function Dashboard() {
 		return symbol;
 	};
 
-	// Calculate realized P&L by matching buy and sell orders using FIFO
+	// Map each fill / expiration activity directly to a trade row.
+	// No FIFO matching — just show raw cash flows and group MLEG orders.
 	const tradeHistory = useMemo(() => {
-		// Group activities by symbol
-		const groupedBySymbol: Record<string, Activity[]> = {};
-
-		activities.forEach((activity) => {
-			if (!groupedBySymbol[activity.symbol]) {
-				groupedBySymbol[activity.symbol] = [];
-			}
-			groupedBySymbol[activity.symbol].push(activity);
-		});
-
-		// Process each symbol to calculate realized P&L
-		const realizedTrades: any[] = [];
-
-		Object.entries(groupedBySymbol).forEach(([symbol, symbolActivities]) => {
-			// Options contracts represent 100 shares; equities have a multiplier of 1
-			const isOption = /^[A-Z]+\d{6}[CP]/.test(symbol);
-			const multiplier = isOption ? 100 : 1;
-
-			// Sort by time (oldest first) for FIFO
-			const sorted = [...symbolActivities].sort(
-				(a, b) =>
-					new Date(a.transaction_time).getTime() - new Date(b.transaction_time).getTime(),
-			);
-
-			// FIFO queues for both long and short positions
-			const buyQueue: Array<{ price: number; qty: number; date: Date }> = [];
-			const sellQueue: Array<{ price: number; qty: number; date: Date; orderId?: string }> =
-				[];
-
-			sorted.forEach((activity) => {
+		return activities
+			.map((activity) => {
+				const isOption = /^[A-Z]+\d{6}[CP]/.test(activity.symbol);
+				const multiplier = isOption ? 100 : 1;
 				const price = parseFloat(activity.price);
 				const qty = parseFloat(activity.qty);
-				const date = new Date(activity.transaction_time);
+				const value = price * qty * multiplier;
 				const resolvedOrderId =
 					legToParentOrder[activity.order_id] || activity.order_id || undefined;
 
-				if (activity.side === "buy") {
-					// First try to close a short position (match against sellQueue)
-					let remainingQty = qty;
-					let totalRevenue = 0;
-					let totalQty = 0;
+				let side: "buy" | "sell" | "expired";
+				let cashFlow: number;
 
-					while (remainingQty > 0 && sellQueue.length > 0) {
-						const sellOrder = sellQueue[0];
-						const qtyToMatch = Math.min(remainingQty, sellOrder.qty);
-						totalRevenue += qtyToMatch * sellOrder.price * multiplier;
-						totalQty += qtyToMatch;
-						remainingQty -= qtyToMatch;
-						sellOrder.qty -= qtyToMatch;
-						if (sellOrder.qty === 0) sellQueue.shift();
-					}
-
-					if (totalQty > 0) {
-						// Short position closed: sellValue = premium received, buyValue = cost to close
-						const sellValue = totalRevenue;
-						const buyValue = price * multiplier * totalQty;
-						const pnl = sellValue - buyValue;
-						const pnlPercent = buyValue !== 0 ? (pnl / Math.abs(buyValue)) * 100 : 0;
-
-						realizedTrades.push({
-							id: activity.id,
-							date,
-							symbol,
-							underlyingTicker: getUnderlyingTicker(symbol),
-							quantity: totalQty,
-							buyPrice: price,
-							sellPrice: totalRevenue / totalQty / multiplier,
-							buyValue,
-							sellValue,
-							pnl,
-							pnlPercent,
-							orderId: resolvedOrderId,
-						});
-					}
-
-					// Leftover qty opens a new long position
-					if (remainingQty > 0) {
-						buyQueue.push({ price, qty: remainingQty, date });
-					}
-				} else if (activity.side === "sell") {
-					// First try to close a long position (match against buyQueue)
-					let remainingQty = qty;
-					let totalCost = 0;
-					let totalQty = 0;
-
-					while (remainingQty > 0 && buyQueue.length > 0) {
-						const buyOrder = buyQueue[0];
-						const qtyToMatch = Math.min(remainingQty, buyOrder.qty);
-						totalCost += qtyToMatch * buyOrder.price * multiplier;
-						totalQty += qtyToMatch;
-						remainingQty -= qtyToMatch;
-						buyOrder.qty -= qtyToMatch;
-						if (buyOrder.qty === 0) buyQueue.shift();
-					}
-
-					if (totalQty > 0) {
-						// Long position closed
-						const buyValue = totalCost;
-						const sellValue = price * multiplier * totalQty;
-						const avgBuyPrice = totalCost / totalQty / multiplier;
-						const pnl = sellValue - buyValue;
-						const pnlPercent = buyValue !== 0 ? (pnl / buyValue) * 100 : 0;
-
-						realizedTrades.push({
-							id: activity.id,
-							date,
-							symbol,
-							underlyingTicker: getUnderlyingTicker(symbol),
-							quantity: totalQty,
-							buyPrice: avgBuyPrice,
-							sellPrice: price,
-							buyValue,
-							sellValue,
-							pnl,
-							pnlPercent,
-							orderId: resolvedOrderId,
-						});
-					}
-
-					// Leftover qty opens a new short position
-					if (remainingQty > 0) {
-						sellQueue.push({ price, qty: remainingQty, date, orderId: resolvedOrderId });
-					}
+				if (activity.activity_type === "OPEXP") {
+					side = "expired";
+					cashFlow = 0;
+				} else if (activity.side.startsWith("sell")) {
+					// Covers "sell", "sell_short", "sell_to_close"
+					side = "sell";
+					cashFlow = value;
+				} else {
+					// Covers "buy", "buy_to_cover", "buy_to_close"
+					side = "buy";
+					cashFlow = -value;
 				}
-			});
-		});
 
-		// Consolidate partial fills: same order_id + same symbol → single trade with aggregated values.
-		// Equity orders commonly fill in multiple pieces at slightly different prices.
-		const consolidatedMap = new Map<string, any>();
-		for (const trade of realizedTrades) {
-			const key = trade.orderId
-				? `${trade.orderId}::${trade.symbol}`
-				: `standalone::${trade.id}`;
-			if (!consolidatedMap.has(key)) {
-				consolidatedMap.set(key, { ...trade });
-			} else {
-				const existing = consolidatedMap.get(key);
-				existing.quantity += trade.quantity;
-				existing.buyValue += trade.buyValue;
-				existing.sellValue += trade.sellValue;
-				existing.pnl = existing.sellValue - existing.buyValue;
-				existing.pnlPercent =
-					existing.buyValue !== 0 ? (existing.pnl / existing.buyValue) * 100 : 0;
-				const mult = /^[A-Z]+\d{6}[CP]/.test(trade.symbol) ? 100 : 1;
-				existing.buyPrice = existing.buyValue / existing.quantity / mult;
-				existing.sellPrice = existing.sellValue / existing.quantity / mult;
-				if (trade.date > existing.date) existing.date = trade.date;
-			}
-		}
-
-		// Sort by date (newest first)
-		return [...consolidatedMap.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
+				return {
+					id: activity.id,
+					date: new Date(activity.transaction_time),
+					symbol: activity.symbol,
+					underlyingTicker: getUnderlyingTicker(activity.symbol),
+					quantity: qty,
+					side,
+					price,
+					cashFlow,
+					orderId: resolvedOrderId,
+				};
+			})
+			.sort((a, b) => b.date.getTime() - a.date.getTime());
 	}, [activities, legToParentOrder]);
 
 	// Filter trades by underlying ticker and timeframe
@@ -605,13 +493,22 @@ export default function Dashboard() {
 
 	// Calculate metrics from ALL trades (not filtered)
 	const metrics = useMemo(() => {
-		const winningTrades = tradeHistory.filter((trade) => trade.pnl > 0).length;
+		const winningTrades = tradeHistory.filter((trade) => trade.cashFlow > 0).length;
 		const totalTrades = tradeHistory.length;
 		const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+		const netRealizedPnl = tradeHistory.reduce((sum, t) => sum + t.cashFlow, 0);
+		const nonZeroTrades = tradeHistory.filter((t) => t.cashFlow !== 0);
+		const avgFill =
+			nonZeroTrades.length > 0
+				? nonZeroTrades.reduce((sum, t) => sum + Math.abs(t.cashFlow), 0) /
+					nonZeroTrades.length
+				: 0;
 
 		return {
 			winRate,
 			totalTrades,
+			netRealizedPnl,
+			avgFill,
 		};
 	}, [tradeHistory]);
 
@@ -880,7 +777,7 @@ export default function Dashboard() {
 						className="w-full justify-start text-xs text-zinc-400 hover:text-zinc-100"
 					>
 						{isTesting ? (
-							<span className="animate-spin text-base mr-2">⏳</span>
+							<Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
 						) : (
 							<Bell className="w-3.5 h-3.5 mr-2" />
 						)}
@@ -894,7 +791,7 @@ export default function Dashboard() {
 						className="w-full justify-start text-xs text-zinc-400 hover:text-zinc-100"
 					>
 						{isResetting ? (
-							<span className="animate-spin text-base mr-2">⏳</span>
+							<Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
 						) : (
 							<RefreshCw className="w-3.5 h-3.5 mr-2" />
 						)}
@@ -908,70 +805,70 @@ export default function Dashboard() {
 
 			{/* ── Main content ── */}
 			<main className="flex-1 overflow-y-auto flex flex-col min-w-0">
-				{/* Mobile top bar */}
-				<div className="sm:hidden sticky top-0 z-10 flex items-center gap-3 px-4 py-3 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 flex-none">
-					<button
-						onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-						className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
-					>
-						{isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-					</button>
-					<h1 className="text-sm font-bold text-zinc-50 truncate">Trading Dashboard</h1>
-					{lastUpdated && (
-						<span className="ml-auto text-[10px] text-zinc-500 tabular-nums whitespace-nowrap">
-							{lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-						</span>
-					)}
-				</div>
-				<div className="max-w-6xl mx-auto w-full p-3 sm:p-5 pb-12 space-y-4 sm:space-y-6">
-					{/* ── Toolbar ── */}
-					<Card>
-						<CardContent className="p-3">
-							<div className="flex flex-col sm:flex-row sm:items-center gap-3">
-								{/* Timeframe */}
-								<div className="flex items-center gap-2 flex-1 min-w-0">
-									<span className="text-xs text-zinc-400 font-medium whitespace-nowrap">
-										Timeframe
-									</span>
-									<div className="flex gap-1 flex-wrap">
-										{(["1D", "1W", "1M", "3M", "ALL"] as Timeframe[]).map((tf) => (
-											<button
-												key={tf}
-												onClick={() => setSelectedTimeframe(tf)}
-												className={cn(
-													"px-2.5 py-1 text-xs rounded-md font-medium transition-colors",
-													selectedTimeframe === tf
-														? "bg-blue-600 text-white"
-														: "bg-zinc-800 text-zinc-300 hover:bg-zinc-700",
-												)}
-											>
-												{tf}
-											</button>
-										))}
-									</div>
-								</div>
-								{/* Ticker Filter */}
-								<div className="flex items-center gap-2">
-									<span className="text-xs text-zinc-400 font-medium whitespace-nowrap">
-										Ticker
-									</span>
-									<select
-										value={filteredSymbol}
-										onChange={(e) => setFilteredSymbol(e.target.value)}
-										className="px-3 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded-md text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-									>
-										<option value="all">All</option>
-										{uniqueSymbols.map((sym) => (
-											<option key={sym} value={sym}>
-												{sym}
-											</option>
-										))}
-									</select>
+				{/* ── Sticky header: mobile nav + timeframe/ticker toolbar ── */}
+				<div className="sticky top-0 z-10 flex-none bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/70">
+					{/* Mobile top bar */}
+					<div className="sm:hidden flex items-center gap-3 px-4 py-3 border-b border-zinc-800/60">
+						<button
+							onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+							className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+						>
+							{isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+						</button>
+						<h1 className="text-sm font-bold text-zinc-50 truncate">Trading Dashboard</h1>
+						{lastUpdated && (
+							<span className="ml-auto text-[10px] text-zinc-500 tabular-nums whitespace-nowrap">
+								{lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+							</span>
+						)}
+					</div>
+					{/* Toolbar */}
+					<div className="px-3 sm:px-5 py-2.5">
+						<div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
+							{/* Timeframe */}
+							<div className="flex items-center gap-2 flex-1 min-w-0">
+								<span className="text-xs text-zinc-400 font-medium whitespace-nowrap">
+									Timeframe
+								</span>
+								<div className="flex gap-1 flex-wrap">
+									{(["1D", "1W", "1M", "3M", "ALL"] as Timeframe[]).map((tf) => (
+										<button
+											key={tf}
+											onClick={() => setSelectedTimeframe(tf)}
+											className={cn(
+												"px-2.5 py-1 text-xs rounded-md font-medium transition-colors",
+												selectedTimeframe === tf
+													? "bg-blue-600 text-white"
+													: "bg-zinc-800 text-zinc-300 hover:bg-zinc-700",
+											)}
+										>
+											{tf}
+										</button>
+									))}
 								</div>
 							</div>
-						</CardContent>
-					</Card>
-
+							{/* Ticker Filter */}
+							<div className="flex items-center gap-2">
+								<span className="text-xs text-zinc-400 font-medium whitespace-nowrap">
+									Ticker
+								</span>
+								<select
+									value={filteredSymbol}
+									onChange={(e) => setFilteredSymbol(e.target.value)}
+									className="px-3 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded-md text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+								>
+									<option value="all">All</option>
+									{uniqueSymbols.map((sym) => (
+										<option key={sym} value={sym}>
+											{sym}
+										</option>
+									))}
+								</select>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div className="max-w-6xl mx-auto w-full p-3 sm:p-5 pb-12 space-y-4 sm:space-y-6">
 					{/* ── Portfolio Chart ── */}
 					{portfolioHistory[selectedTimeframe] && (
 						<div className="space-y-3">
@@ -1188,7 +1085,7 @@ export default function Dashboard() {
 						<h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
 							Closed Positions Summary
 						</h2>
-						<div className="grid grid-cols-2 gap-3">
+						<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 							<Card>
 								<CardContent className="p-4">
 									<div className="flex items-center gap-2 mb-2">
@@ -1206,8 +1103,52 @@ export default function Dashboard() {
 										<TrendingUp className="w-3.5 h-3.5 text-zinc-500" />
 										<p className="text-xs text-zinc-500">Win Rate</p>
 									</div>
-									<p className="text-2xl font-bold text-zinc-50 tabular-nums">
+									<p
+										className={cn(
+											"text-2xl font-bold tabular-nums",
+											metrics.winRate >= 50
+												? "text-emerald-400"
+												: metrics.winRate >= 30
+													? "text-yellow-400"
+													: "text-red-400",
+										)}
+									>
 										{metrics.winRate.toFixed(1)}%
+									</p>
+								</CardContent>
+							</Card>
+							<Card>
+								<CardContent className="p-4">
+									<div className="flex items-center gap-2 mb-2">
+										<BarChart3 className="w-3.5 h-3.5 text-zinc-500" />
+										<p className="text-xs text-zinc-500">Net Realized P&amp;L</p>
+									</div>
+									<p
+										className={cn(
+											"text-2xl font-bold tabular-nums",
+											metrics.netRealizedPnl >= 0 ? "text-emerald-400" : "text-red-400",
+										)}
+									>
+										{metrics.netRealizedPnl >= 0 ? "+" : "-"}$
+										{Math.abs(metrics.netRealizedPnl).toLocaleString(undefined, {
+											minimumFractionDigits: 2,
+											maximumFractionDigits: 2,
+										})}
+									</p>
+								</CardContent>
+							</Card>
+							<Card>
+								<CardContent className="p-4">
+									<div className="flex items-center gap-2 mb-2">
+										<Target className="w-3.5 h-3.5 text-zinc-500" />
+										<p className="text-xs text-zinc-500">Avg Fill</p>
+									</div>
+									<p className="text-2xl font-bold text-zinc-50 tabular-nums">
+										$
+										{metrics.avgFill.toLocaleString(undefined, {
+											minimumFractionDigits: 2,
+											maximumFractionDigits: 2,
+										})}
 									</p>
 								</CardContent>
 							</Card>

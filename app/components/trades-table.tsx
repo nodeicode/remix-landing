@@ -10,12 +10,9 @@ interface Trade {
 	symbol: string;
 	underlyingTicker: string;
 	quantity: number;
-	buyPrice: number;
-	sellPrice: number;
-	buyValue: number;
-	sellValue: number;
-	pnl: number;
-	pnlPercent: number;
+	side: "buy" | "sell" | "expired";
+	price: number;
+	cashFlow: number;
 	orderId?: string;
 }
 
@@ -34,8 +31,7 @@ interface TradeGroup {
 	label: string;
 	trades: Trade[];
 	isMultiLeg: boolean;
-	totalPnl: number;
-	totalPnlPercent: number;
+	totalCashFlow: number;
 	date: Date;
 }
 
@@ -48,9 +44,7 @@ function buildTradeGroups(trades: Trade[]): TradeGroup[] {
 	}
 	return Array.from(buckets.entries()).map(([key, group]) => {
 		const isMultiLeg = new Set(group.map((t) => t.symbol)).size > 1;
-		const totalPnl = group.reduce((s, t) => s + t.pnl, 0);
-		const totalBuyValue = group.reduce((s, t) => s + t.buyValue, 0);
-		const totalPnlPercent = totalBuyValue !== 0 ? (totalPnl / totalBuyValue) * 100 : 0;
+		const totalCashFlow = group.reduce((s, t) => s + t.cashFlow, 0);
 		return {
 			key,
 			label: isMultiLeg
@@ -58,30 +52,53 @@ function buildTradeGroups(trades: Trade[]): TradeGroup[] {
 				: group[0].underlyingTicker,
 			trades: group,
 			isMultiLeg,
-			totalPnl: isMultiLeg ? totalPnl : group[0].pnl,
-			totalPnlPercent: isMultiLeg ? totalPnlPercent : group[0].pnlPercent,
+			totalCashFlow,
 			date: group[0].date,
 		};
 	});
 }
 
-function PnlCell({ value, isPercent }: { value: number; isPercent?: boolean }) {
-	const isPos = value >= 0;
+function CashFlowCell({ value }: { value: number }) {
+	if (value === 0) {
+		return <span className="font-semibold tabular-nums text-zinc-500">$0.00</span>;
+	}
+	const isPos = value > 0;
 	const sign = isPos ? "+" : "-";
 	const abs = Math.abs(value);
-	const formatted = isPercent
-		? `${sign}${abs.toFixed(2)}%`
-		: `${sign}$${abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 	return (
 		<span
 			className={cn("font-semibold tabular-nums", isPos ? "text-emerald-400" : "text-red-400")}
 		>
-			{formatted}
+			{sign}$
+			{abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+		</span>
+	);
+}
+
+function SideBadge({ side }: { side: Trade["side"] }) {
+	return (
+		<span
+			className={cn(
+				"text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded",
+				side === "sell" && "text-emerald-400 bg-emerald-400/10",
+				side === "buy" && "text-red-400 bg-red-400/10",
+				side === "expired" && "text-zinc-500 bg-zinc-500/10",
+			)}
+		>
+			{side === "expired" ? "EXP" : side}
 		</span>
 	);
 }
 
 function shortDate(d: Date) {
+	const now = new Date();
+	if (d.getFullYear() !== now.getFullYear()) {
+		return d.toLocaleDateString(undefined, {
+			month: "numeric",
+			day: "numeric",
+			year: "2-digit",
+		});
+	}
 	return d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
 }
 
@@ -150,17 +167,19 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 								rightAlign
 							/>
 							<TableHead className="hidden sm:table-cell text-zinc-400 font-medium text-xs px-3 h-10">
-								Entry &rarr; Exit
+								Side
 							</TableHead>
-							<SortableHead column="pnl" label="P&amp;L" rightAlign />
-							<SortableHead column="pnlPercent" label="%" className="pr-4" rightAlign />
+							<TableHead className="hidden sm:table-cell text-zinc-400 font-medium text-xs px-3 h-10 text-right">
+								Price
+							</TableHead>
+							<SortableHead column="cashFlow" label="Amount" className="pr-4" rightAlign />
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{tradeGroups.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={7} className="py-10 text-center text-zinc-500">
-									No trades found
+									No fills found
 								</TableCell>
 							</TableRow>
 						) : (
@@ -193,11 +212,11 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 												<TableCell className="hidden sm:table-cell text-zinc-500 text-xs px-2">
 													&mdash;
 												</TableCell>
-												<TableCell className="text-right px-2">
-													<PnlCell value={group.totalPnl} />
+												<TableCell className="hidden sm:table-cell text-zinc-500 text-xs px-2">
+													&mdash;
 												</TableCell>
 												<TableCell className="text-right pr-3 px-2">
-													<PnlCell value={group.totalPnlPercent} isPercent />
+													<CashFlowCell value={group.totalCashFlow} />
 												</TableCell>
 											</TableRow>
 											<TableRow className="border-0 hover:bg-transparent p-0">
@@ -224,16 +243,14 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 																			<td className="hidden sm:table-cell py-2 px-2 text-zinc-400 text-right tabular-nums">
 																				{trade.quantity.toLocaleString()}
 																			</td>
-																			<td className="hidden sm:table-cell py-2 px-2 text-zinc-400 font-mono whitespace-nowrap">
-																				${trade.buyPrice.toFixed(2)}
-																				<span className="text-zinc-600 mx-0.5">&rarr;</span>$
-																				{trade.sellPrice.toFixed(2)}
+																			<td className="hidden sm:table-cell py-2 px-2">
+																				<SideBadge side={trade.side} />
 																			</td>
-																			<td className="py-2 px-2 text-right">
-																				<PnlCell value={trade.pnl} />
+																			<td className="hidden sm:table-cell py-2 px-2 text-zinc-400 font-mono text-right tabular-nums">
+																				${trade.price.toFixed(2)}
 																			</td>
 																			<td className="py-2 px-2 pr-3 text-right">
-																				<PnlCell value={trade.pnlPercent} isPercent />
+																				<CashFlowCell value={trade.cashFlow} />
 																			</td>
 																		</tr>
 																	))}
@@ -260,16 +277,14 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 										<TableCell className="hidden sm:table-cell text-zinc-400 text-xs text-right px-2 tabular-nums">
 											{trade.quantity.toLocaleString()}
 										</TableCell>
-										<TableCell className="hidden sm:table-cell text-zinc-400 text-xs font-mono whitespace-nowrap px-2">
-											${trade.buyPrice.toFixed(2)}
-											<span className="text-zinc-600 mx-0.5">&rarr;</span>$
-											{trade.sellPrice.toFixed(2)}
+										<TableCell className="hidden sm:table-cell px-2">
+											<SideBadge side={trade.side} />
 										</TableCell>
-										<TableCell className="text-right px-2">
-											<PnlCell value={trade.pnl} />
+										<TableCell className="hidden sm:table-cell text-zinc-400 text-xs font-mono text-right px-2 tabular-nums">
+											${trade.price.toFixed(2)}
 										</TableCell>
 										<TableCell className="text-right pr-3 px-2">
-											<PnlCell value={trade.pnlPercent} isPercent />
+											<CashFlowCell value={trade.cashFlow} />
 										</TableCell>
 									</TableRow>
 								);

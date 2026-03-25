@@ -112,7 +112,7 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 		// Fetch closed orders with nested=true to map multi-leg child orders → parent order
 		const legToParentOrder: Record<string, string> = {};
 		try {
-			const ordersUrl = `${baseUrl}/v2/orders?status=closed&nested=true&limit=500`;
+		const ordersUrl = `${baseUrl}/v2/orders?status=closed&nested=true&limit=500&direction=desc`;
 			const ordersResponse = await fetch(ordersUrl, { headers });
 			if (ordersResponse.ok) {
 				const orders: any[] = await ordersResponse.json();
@@ -128,26 +128,84 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 			console.error(`Error fetching orders for account ${name}:`, e);
 		}
 
-		// Fetch activities
+		// Fetch FILL activities (paginated). `after` is only sent on the first request
+		// because Alpaca rejects requests that combine `after` with `page_token`.
+		// Direction is desc (newest-first) by default; FIFO re-sorts by timestamp anyway.
 		let allActivities: Activity[] = [];
 		let pageToken: string | null = null;
-		const maxActivities = 500;
+		const maxActivities = 10_000;
 		const pageSize = 100;
+		const twoYearsAgo = new Date();
+		twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+		const afterDate = encodeURIComponent(twoYearsAgo.toISOString());
 
 		while (allActivities.length < maxActivities) {
-			const activitiesUrl: string = pageToken
-				? `${baseUrl}/v2/account/activities/FILL?page_size=${pageSize}&page_token=${pageToken}`
-				: `${baseUrl}/v2/account/activities/FILL?page_size=${pageSize}`;
+			// page_token is the sole cursor on page 2+; mixing it with `after` breaks Alpaca pagination
+			const activitiesUrl = pageToken
+				? `${baseUrl}/v2/account/activities/FILL?page_size=${pageSize}&page_token=${encodeURIComponent(pageToken)}`
+				: `${baseUrl}/v2/account/activities/FILL?page_size=${pageSize}&after=${afterDate}`;
 
 			const activitiesResponse: Response = await fetch(activitiesUrl, { headers });
 			if (!activitiesResponse.ok) break;
 
 			const pageActivities: Activity[] = await activitiesResponse.json();
-			allActivities = [...allActivities, ...pageActivities];
+			if (pageActivities.length === 0) break;
 
-			const nextPageToken: string | null = activitiesResponse.headers.get("x-page-token");
-			if (!nextPageToken || pageActivities.length < pageSize) break;
-			pageToken = nextPageToken;
+			allActivities = [...allActivities, ...pageActivities];
+			if (pageActivities.length < pageSize) break;
+
+			// The oldest item in this page becomes the cursor for the next (older) page
+			const oldest = pageActivities[pageActivities.length - 1];
+			if (new Date(oldest.transaction_time) < twoYearsAgo) break;
+			pageToken = oldest.id;
+		}
+		console.log(`[API] ${name}: fetched ${allActivities.length} FILL activities`);
+
+		// Fetch OPEXP (option expiration) activities — fired when options expire rather
+		// than being bought/sold to close. Without these, an IC that expires worthless
+		// shows open fills in the FIFO queue with nothing to match against → invisible.
+		try {
+			let opexpAll: any[] = [];
+			let opexpToken: string | null = null;
+			while (opexpAll.length < 2000) {
+				const opexpUrl = opexpToken
+					? `${baseUrl}/v2/account/activities/OPEXP?page_size=${pageSize}&page_token=${encodeURIComponent(opexpToken)}`
+					: `${baseUrl}/v2/account/activities/OPEXP?page_size=${pageSize}&after=${afterDate}`;
+				const opexpResponse = await fetch(opexpUrl, { headers });
+				if (!opexpResponse.ok) break;
+				const opexpPage: any[] = await opexpResponse.json();
+				if (opexpPage.length === 0) break;
+				opexpAll = [...opexpAll, ...opexpPage];
+				if (opexpPage.length < pageSize) break;
+				opexpToken = opexpPage[opexpPage.length - 1].id;
+			}
+			console.log(`[API] ${name}: fetched ${opexpAll.length} OPEXP activities`);
+			for (const exp of opexpAll) {
+				if (!exp.symbol) continue;
+				// `date` is the expiry date; fall back to id as a last resort
+				const expiryDate = (exp.date as string) ?? (exp.id as string).slice(0, 10);
+				// Group all legs that share the same underlying + expiry date under one
+				// synthetic orderId so buildTradeGroups shows them as a single IC row.
+				const underlying =
+					(exp.symbol as string).match(/^([A-Z]+)\d{6}[CP]/)?.[1] ?? exp.symbol;
+				const syntheticOrderId = `opexp_${underlying}_${expiryDate}`;
+				allActivities.push({
+					id: exp.id,
+					activity_type: 'OPEXP',
+					transaction_time: `${expiryDate}T23:59:59Z`,
+					type: (exp.type as string) || 'expiration',
+					price: String(exp.price ?? 0),
+					qty: String(Math.abs(parseFloat(exp.qty || '0'))),
+					side: '', // FIFO infers direction from queue state
+					symbol: exp.symbol,
+					leaves_qty: '0',
+					order_id: syntheticOrderId,
+					cum_qty: String(Math.abs(parseFloat(exp.qty || '0'))),
+					order_status: 'filled',
+				});
+			}
+		} catch (e) {
+			console.error(`[API] Error fetching OPEXP for account ${name}:`, e);
 		}
 
 		const portfolioHistoryResults = await Promise.all(portfolioHistoryPromises);

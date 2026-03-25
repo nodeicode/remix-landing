@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Wifi, WifiOff, RefreshCw, CheckCircle2, Loader2 } from "lucide-react";
 
 interface SyncStatusProps {
 	className?: string;
@@ -58,15 +59,15 @@ export function SyncStatus({ className = "" }: SyncStatusProps) {
 	}, []);
 
 	const getStatusColor = () => {
-		if (!isOnline) return "text-red-600 dark:text-red-400";
-		if (isSyncing) return "text-yellow-600 dark:text-yellow-400";
-		return "text-green-600 dark:text-green-400";
+		if (!isOnline) return "text-red-400";
+		if (isSyncing) return "text-yellow-400";
+		return "text-emerald-400";
 	};
 
 	const getStatusIcon = () => {
-		if (!isOnline) return "⚠️";
-		if (isSyncing) return "🔄";
-		return "✅";
+		if (!isOnline) return <WifiOff className="w-3 h-3" />;
+		if (isSyncing) return <RefreshCw className="w-3 h-3 animate-spin" />;
+		return <CheckCircle2 className="w-3 h-3" />;
 	};
 
 	const getStatusText = () => {
@@ -96,10 +97,8 @@ export function SyncStatus({ className = "" }: SyncStatusProps) {
 		return (
 			<div className={`flex items-center gap-2 ${className}`}>
 				<div className="flex items-center gap-1.5">
-					<span className="text-sm text-gray-400">⏳</span>
-					<span className="text-xs md:text-sm font-medium text-gray-400 dark:text-gray-500">
-						Connecting...
-					</span>
+					<Loader2 className="w-3 h-3 animate-spin text-zinc-500" />
+					<span className="text-xs font-medium text-zinc-500">Connecting...</span>
 				</div>
 			</div>
 		);
@@ -108,19 +107,13 @@ export function SyncStatus({ className = "" }: SyncStatusProps) {
 	return (
 		<div className={`flex items-center gap-2 ${className}`}>
 			<div className="flex items-center gap-1.5">
-				<span className={`text-sm ${getStatusColor()}`}>{getStatusIcon()}</span>
-				<span className={`text-xs md:text-sm font-medium ${getStatusColor()}`}>
-					{getStatusText()}
-				</span>
+				<span className={getStatusColor()}>{getStatusIcon()}</span>
+				<span className={`text-xs font-medium ${getStatusColor()}`}>{getStatusText()}</span>
 			</div>
 			{!isSyncing && lastSyncTime && (
-				<span className="text-xs text-gray-500 dark:text-gray-400">
-					• Last sync: {formatLastSync()}
-				</span>
+				<span className="text-xs text-zinc-500">• Last sync: {formatLastSync()}</span>
 			)}
-			{!isOnline && (
-				<span className="text-xs text-gray-500 dark:text-gray-400">• Data may be stale</span>
-			)}
+			{!isOnline && <span className="text-xs text-zinc-500">• Data may be stale</span>}
 		</div>
 	);
 }

@@ -54,3 +54,46 @@ export function parseEnvJson<T>(key: string): T | null {
     return null;
   }
 }
+
+export interface NumberedAccount {
+  name: string;
+  apiKey: string;
+  secretKey: string;
+  type: "PAPER" | "LIVE";
+}
+
+/**
+ * Parses numbered Alpaca account env vars into an account list.
+ *
+ * Supported patterns (N = 1, 2, 3, ...):
+ *   ALPACA_PAPER{N}_API_KEY / ALPACA_PAPER{N}_API_SECRET
+ *   ALPACA_PAPER{N}_NAME  (optional, defaults to "Paper Account N")
+ *   ALPACA_LIVE{N}_API_KEY  / ALPACA_LIVE{N}_API_SECRET
+ *   ALPACA_LIVE{N}_NAME   (optional, defaults to "Live Account N")
+ *
+ * Scanning stops for a type when two consecutive numbers are missing.
+ */
+export function parseNumberedAccounts(): NumberedAccount[] {
+  const accounts: NumberedAccount[] = [];
+
+  for (const type of ["PAPER", "LIVE"] as const) {
+    let n = 1;
+    let consecutiveMissing = 0;
+    while (consecutiveMissing < 2) {
+      const apiKey = process.env[`ALPACA_${type}${n}_API_KEY`];
+      const secretKey = process.env[`ALPACA_${type}${n}_API_SECRET`];
+      if (apiKey && secretKey) {
+        consecutiveMissing = 0;
+        const name =
+          process.env[`ALPACA_${type}${n}_NAME`] ||
+          `${type === "PAPER" ? "Paper" : "Live"} Account ${n}`;
+        accounts.push({ name, apiKey, secretKey, type });
+      } else {
+        consecutiveMissing++;
+      }
+      n++;
+    }
+  }
+
+  return accounts;
+}

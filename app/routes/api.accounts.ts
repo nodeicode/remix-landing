@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { parseEnvJson } from "../utils/env.server";
+import { parseNumberedAccounts } from "../utils/env.server";
 
 // Types for Alpaca API responses
 interface PortfolioHistoryData {
@@ -265,7 +265,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	if (process.env.ALPACA_API_KEY && process.env.ALPACA_SECRET_KEY) {
 		addAccount({
 			id: "paper-default",
-			name: "Paper Account",
+			name: "Paper Testing",
 			type: "PAPER",
 			apiKey: process.env.ALPACA_API_KEY,
 			secretKey: process.env.ALPACA_SECRET_KEY,
@@ -273,30 +273,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		});
 	}
 
-	const additionalData = parseEnvJson<any>("ALPACA_ADDITIONAL_ACCOUNTS");
-	if (additionalData) {
-		// Support both { accounts: [...] } and [...] formats
-		const additionalAccounts = Array.isArray(additionalData)
-			? additionalData
-			: additionalData.accounts;
-
-		if (Array.isArray(additionalAccounts)) {
-				additionalAccounts.forEach((acc, index) => {
-					const type = acc.type === "LIVE" ? "LIVE" : "PAPER";
-					addAccount({
-						id: `additional-${index}`,
-						name: acc.name || `Additional ${type} ${index + 1}`,
-						type: type,
-						apiKey: acc.apiKey,
-						secretKey: acc.secretKey,
-						baseUrl:
-							type === "LIVE"
-								? "https://api.alpaca.markets"
-								: "https://paper-api.alpaca.markets",
-					});
-				});
-			}
-	}
+	parseNumberedAccounts().forEach((acc, index) => {
+		addAccount({
+			id: `additional-${index}`,
+			name: acc.name,
+			type: acc.type,
+			apiKey: acc.apiKey,
+			secretKey: acc.secretKey,
+			baseUrl:
+				acc.type === "LIVE"
+					? "https://api.alpaca.markets"
+					: "https://paper-api.alpaca.markets",
+		});
+	});
 
 	if (accountsToFetch.length === 0) {
 		return Response.json(

@@ -105,6 +105,13 @@ export default function Dashboard() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+	const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+
+	const getDefaultAccountId = (accountList: AccountData[]): string => {
+		if (accountList.length === 0) return "";
+		const preferredDefault = accountList.find((account) => account.id === "additional-0");
+		return preferredDefault?.id ?? accountList[0].id;
+	};
 
 	const fetchAccounts = useCallback(async (isBackground = false) => {
 		if (!isBackground) {
@@ -120,6 +127,15 @@ export default function Dashboard() {
 				throw new Error(data.error ?? "No accounts in response");
 			}
 			setAccounts(data.accounts);
+			setSelectedAccountId((prevSelectedId) => {
+				if (
+					prevSelectedId &&
+					data.accounts.some((account: AccountData) => account.id === prevSelectedId)
+				) {
+					return prevSelectedId;
+				}
+				return getDefaultAccountId(data.accounts);
+			});
 			setError(null);
 			setLastUpdated(new Date());
 		} catch (err) {
@@ -143,14 +159,6 @@ export default function Dashboard() {
 		return () => clearInterval(interval);
 	}, [fetchAccounts]);
 
-	const [selectedAccountId, setSelectedAccountId] = useState<string>("");
-
-	useEffect(() => {
-		if (accounts.length > 0 && !selectedAccountId) {
-			setSelectedAccountId(accounts[0].id);
-		}
-	}, [accounts, selectedAccountId]);
-
 	const currentAccount = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
 
 	// Destructure from the currently selected account
@@ -164,7 +172,7 @@ export default function Dashboard() {
 	const revalidator = useRevalidator();
 
 	const [filteredSymbol, setFilteredSymbol] = useState<string>("all");
-	const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>("ALL");
+	const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>("1W");
 	const [sortConfig, setSortConfig] = useState<{
 		key: string;
 		direction: "asc" | "desc";
@@ -709,7 +717,10 @@ export default function Dashboard() {
 							return (
 								<button
 									key={account.id}
-									onClick={() => setSelectedAccountId(account.id)}
+									onClick={() => {
+										setSelectedAccountId(account.id);
+										setIsSidebarOpen(false);
+									}}
 									className={cn(
 										"w-full text-left rounded-lg px-3 py-2.5 transition-all border",
 										isSelected

@@ -1,4 +1,10 @@
 // Utility functions for managing push notification subscriptions
+/// <reference types="vite/client" />
+
+// The VAPID public key is intentionally public — it is sent to the browser
+// as part of every push subscription and does not need to be kept secret.
+// Set VITE_VAPID_PUBLIC_KEY in your .env file (same value as VAPID_PUBLIC_KEY).
+export const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
 
 // Convert VAPID public key from base64 to Uint8Array
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -15,7 +21,7 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
 // Subscribe to push notifications
 export async function subscribeToPush(
   registration: ServiceWorkerRegistration,
-  vapidPublicKey: string
+  vapidPublicKey: string = VAPID_PUBLIC_KEY
 ): Promise<PushSubscription | null> {
   try {
     // Check if already subscribed

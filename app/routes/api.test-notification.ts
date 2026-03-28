@@ -38,7 +38,8 @@ export async function action({ request }: ActionFunctionArgs) {
     body: "10 shares @ $150.00 (Cost: $1,500.00)",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
-    data: { url: "/" }
+    tag: "test-notification",
+    data: { url: "/dashboard" },
   });
 
   let successCount = 0;

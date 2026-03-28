@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
+import { subscribeToNotifications } from "~/utils/service-worker";
 
 export function NotificationPermission() {
 	const [permission, setPermission] = useState<NotificationPermission>("default");
@@ -27,7 +28,8 @@ export function NotificationPermission() {
 			setPermission(result);
 
 			if (result === "granted") {
-				console.log("[Notifications] ✅ Permission granted");
+				console.log("[Notifications] ✅ Permission granted — subscribing to push");
+				await subscribeToNotifications();
 			} else {
 				console.log("[Notifications] ❌ Permission denied");
 			}

@@ -87,3 +87,10 @@ export async function getSubscriptions() {
     return [];
   }
 }
+
+// Remove a single expired/invalid subscription by its endpoint URL.
+export async function deleteSubscription(endpoint: string): Promise<void> {
+  const key = `push:${Buffer.from(endpoint).toString('base64').slice(0, 50)}`;
+  await redis.del(key);
+  console.log("[Subscribe] 🗑️ Deleted subscription:", key);
+}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useRevalidator } from "react-router";
+import { registerServiceWorker, subscribeToNotifications } from "~/utils/service-worker";
 import {
 	Menu,
 	X,
@@ -169,8 +169,6 @@ export default function Dashboard() {
 		legToParentOrder: {},
 	};
 
-	const revalidator = useRevalidator();
-
 	const [filteredSymbol, setFilteredSymbol] = useState<string>("all");
 	const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>("1W");
 	const [sortConfig, setSortConfig] = useState<{
@@ -201,194 +199,28 @@ export default function Dashboard() {
 		}
 	};
 
-	// Reset service worker and resubscribe
+	// Unregister, re-register and re-subscribe — useful when the push subscription breaks.
 	const resetServiceWorker = async () => {
 		setIsResetting(true);
 		try {
-			console.log("[Dashboard] 🔄 Resetting service worker...");
-
-			// Unregister existing service worker
 			const registrations = await navigator.serviceWorker.getRegistrations();
-			for (const registration of registrations) {
-				await registration.unregister();
-				console.log("[Dashboard] ✅ Service worker unregistered");
-			}
-
-			// Wait a bit for cleanup
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-
-			// Re-register service worker
-			const registration = await navigator.serviceWorker.register("/sw.js");
-			console.log("[Dashboard] ✅ Service worker re-registered:", registration);
-
-			// Request notification permission
-			let permission = Notification.permission;
-			if ("Notification" in window && permission === "default") {
-				permission = await Notification.requestPermission();
-				console.log("[Dashboard] Notification permission:", permission);
-			}
-
-			// Subscribe to push notifications if permission granted
-			if (permission === "granted") {
-				await navigator.serviceWorker.ready;
-
-				const vapidPublicKey =
-					"BH3j8zyLhRiIOqt4wGx09jh5GRmkwk1-4btu6WhdFqvbP1dpPXRPdTSUTm7AZtif0tiyU2ILjFVQsFj7nRJfxn0";
-
-				// Helper function to convert VAPID key
-				const urlBase64ToUint8Array = (base64String: string) => {
-					const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-					const base64 = (base64String + padding).replace(/\-/g, "+").replace(/_/g, "/");
-					const rawData = window.atob(base64);
-					const outputArray = new Uint8Array(rawData.length);
-					for (let i = 0; i < rawData.length; ++i) {
-						outputArray[i] = rawData.charCodeAt(i);
-					}
-					return outputArray;
-				};
-
-				// Subscribe to push notifications
-				const subscription = await registration.pushManager.subscribe({
-					userVisibleOnly: true,
-					applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-				});
-
-				console.log("[Dashboard] ✅ Subscribed to push notifications");
-
-				// Send subscription to server
-				console.log("[Dashboard] 📤 Sending subscription to server...");
-				const response = await fetch("/api/subscribe", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(subscription.toJSON()),
-				});
-
-				if (response.ok) {
-					console.log("[Dashboard] ✅ Subscription saved to database");
-				} else {
-					const errorText = await response.text();
-					console.error(
-						"[Dashboard] ❌ Failed to save subscription:",
-						response.status,
-						errorText,
-					);
-				}
-			}
-
-			console.log("[Dashboard] ✅ Service worker reset complete!");
+			for (const reg of registrations) await reg.unregister();
+			await registerServiceWorker();
+			if (Notification.permission === "granted") await subscribeToNotifications();
 			alert("Service worker reset successfully! Page will reload...");
 			window.location.reload();
-		} catch (error) {
-			console.error("[Dashboard] ❌ Error resetting service worker:", error);
-			alert("Failed to reset service worker. Check console for details.");
+		} catch (err) {
+			console.error("[Dashboard] Reset failed:", err);
+			alert("Failed to reset service worker.");
 		} finally {
 			setIsResetting(false);
 		}
 	};
 
-	// Register service worker and subscribe to push notifications
+	// Register SW on mount; subscription is handled by NotificationPermission component.
 	useEffect(() => {
-		if ("serviceWorker" in navigator) {
-			navigator.serviceWorker
-				.register("/sw.js")
-				.then(async (registration) => {
-					console.log("[Dashboard] Service Worker registered:", registration);
-
-					// Request notification permission
-					let permission = Notification.permission;
-					if ("Notification" in window && permission === "default") {
-						permission = await Notification.requestPermission();
-						console.log("[Dashboard] Notification permission:", permission);
-					}
-
-					// Subscribe to push notifications if permission granted
-					if (permission === "granted") {
-						try {
-							// Wait for service worker to be ready
-							await navigator.serviceWorker.ready;
-
-							// IMPORTANT: Replace with your actual VAPID public key from step 1
-							const vapidPublicKey =
-								"BH3j8zyLhRiIOqt4wGx09jh5GRmkwk1-4btu6WhdFqvbP1dpPXRPdTSUTm7AZtif0tiyU2ILjFVQsFj7nRJfxn0";
-
-							// Check if already subscribed
-							let subscription = await registration.pushManager.getSubscription();
-
-							if (!subscription) {
-								// Helper function to convert VAPID key
-								const urlBase64ToUint8Array = (base64String: string) => {
-									const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-									const base64 = (base64String + padding)
-										.replace(/\-/g, "+")
-										.replace(/_/g, "/");
-									const rawData = window.atob(base64);
-									const outputArray = new Uint8Array(rawData.length);
-									for (let i = 0; i < rawData.length; ++i) {
-										outputArray[i] = rawData.charCodeAt(i);
-									}
-									return outputArray;
-								};
-
-								// Subscribe to push notifications
-								subscription = await registration.pushManager.subscribe({
-									userVisibleOnly: true,
-									applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-								});
-
-								console.log("[Dashboard] ✅ Subscribed to push notifications");
-
-								// Send new subscription to server
-								console.log("[Dashboard] 📤 Sending new subscription to server...");
-								const response = await fetch("/api/subscribe", {
-									method: "POST",
-									headers: { "Content-Type": "application/json" },
-									body: JSON.stringify(subscription.toJSON()),
-								});
-
-								if (response.ok) {
-									console.log("[Dashboard] ✅ Subscription saved to database");
-								} else {
-									const errorText = await response.text();
-									console.error(
-										"[Dashboard] ❌ Failed to save subscription:",
-										response.status,
-										errorText,
-									);
-								}
-							} else {
-								console.log("[Dashboard] ✅ Already subscribed to push notifications");
-							}
-						} catch (error) {
-							console.error(
-								"[Dashboard] ❌ Failed to subscribe to push notifications:",
-								error,
-							);
-						}
-					}
-
-					// Listen for messages from service worker
-					const handleMessage = (event: MessageEvent) => {
-						console.log("[Dashboard] Service worker message:", event.data);
-
-						// Revalidate data when sync completes with changes
-						if (event.data.type === "SYNC_COMPLETED" && event.data.hasChanges) {
-							console.log("[Dashboard] 🔄 Position changes detected!");
-							revalidator.revalidate();
-						}
-					};
-
-					navigator.serviceWorker.addEventListener("message", handleMessage);
-
-					// Cleanup listener on unmount
-					return () => {
-						navigator.serviceWorker.removeEventListener("message", handleMessage);
-					};
-				})
-				.catch((error) => {
-					console.error("[Dashboard] Service Worker registration failed:", error);
-				});
-		}
-	}, [revalidator]);
+		registerServiceWorker();
+	}, []);
 
 	// Helper function to extract underlying ticker from option symbols
 	// Option format: AAPL250117C00150000 -> AAPL

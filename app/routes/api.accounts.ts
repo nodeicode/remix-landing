@@ -62,6 +62,7 @@ interface AccountData {
 	positions: Position[];
 	activities: Activity[];
 	legToParentOrder: Record<string, string>;
+	orderIdToSource: Record<string, string>;
 	buyingPower?: number;
 	equity?: number;
 }
@@ -111,12 +112,14 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 
 		// Fetch closed orders with nested=true to map multi-leg child orders → parent order
 		const legToParentOrder: Record<string, string> = {};
+		const orderIdToSource: Record<string, string> = {};
 		try {
 		const ordersUrl = `${baseUrl}/v2/orders?status=closed&nested=true&limit=500&direction=desc`;
 			const ordersResponse = await fetch(ordersUrl, { headers });
 			if (ordersResponse.ok) {
 				const orders: any[] = await ordersResponse.json();
 				for (const order of orders) {
+					if (order.source) orderIdToSource[order.id] = order.source;
 					if (Array.isArray(order.legs)) {
 						for (const leg of order.legs) {
 							legToParentOrder[leg.id] = order.id;
@@ -223,6 +226,7 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 			positions,
 			activities: allActivities,
 			legToParentOrder,
+			orderIdToSource,
 			buyingPower: accountInfo ? parseFloat(accountInfo.buying_power) : 0,
 			equity: accountInfo ? parseFloat(accountInfo.equity) : 0,
 		};

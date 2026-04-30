@@ -14,6 +14,7 @@ interface Trade {
 	price: number;
 	cashFlow: number;
 	orderId?: string;
+	source?: string;
 }
 
 interface TradesTableProps {
@@ -90,6 +91,43 @@ function SideBadge({ side }: { side: Trade["side"] }) {
 	);
 }
 
+function SourceBadge({ source, side }: { source?: string; side?: Trade["side"] }) {
+	if (side === "expired") {
+		return (
+			<span className="inline text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded w-fit bg-zinc-700/60 text-zinc-400">
+				AUTO-EXP
+			</span>
+		);
+	}
+	const s = source || "dashboard";
+	if (s === "alpaca::auto_liquidate") {
+		return (
+			<span className="inline text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded w-fit bg-amber-400/10 text-amber-400">
+				AUTO-LIQ
+			</span>
+		);
+	}
+	if (s === "access_key") {
+		return (
+			<span className="inline text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded w-fit bg-blue-400/10 text-blue-400">
+				API
+			</span>
+		);
+	}
+	if (s === "dashboard") {
+		return (
+			<span className="inline text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded w-fit bg-zinc-700/60 text-zinc-400">
+				MANUAL
+			</span>
+		);
+	}
+	return (
+		<span className="inline text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded w-fit bg-zinc-700/60 text-zinc-500">
+			{s}
+		</span>
+	);
+}
+
 function shortDate(d: Date) {
 	const now = new Date();
 	if (d.getFullYear() !== now.getFullYear()) {
@@ -100,6 +138,10 @@ function shortDate(d: Date) {
 		});
 	}
 	return d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
+}
+
+function shortTime(d: Date) {
+	return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
@@ -201,10 +243,21 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 													)}
 												</TableCell>
 												<TableCell className="pl-1 text-zinc-400 text-xs whitespace-nowrap px-2">
-													{shortDate(group.date)}
+													<div className="flex flex-col">
+														<span>{shortDate(group.date)}</span>
+														<span className="text-zinc-600 text-[10px] tabular-nums">
+															{shortTime(group.date)}
+														</span>
+													</div>
 												</TableCell>
 												<TableCell className="text-xs px-2">
-													<span className="font-bold text-zinc-50">{group.label}</span>
+													<div className="flex flex-col gap-0.5">
+														<span className="font-bold text-zinc-50">{group.label}</span>
+														<SourceBadge
+															source={group.trades[0].source}
+															side={group.trades[0].side}
+														/>
+													</div>
 												</TableCell>
 												<TableCell className="hidden sm:table-cell text-zinc-500 text-xs text-right px-2">
 													&mdash;
@@ -235,7 +288,12 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 																		>
 																			<td className="pl-3 py-2 w-6" />
 																			<td className="pl-1 py-2 text-zinc-500 whitespace-nowrap px-2">
-																				{shortDate(trade.date)}
+																				<div className="flex flex-col">
+																					<span>{shortDate(trade.date)}</span>
+																					<span className="text-zinc-600 text-[10px] tabular-nums">
+																						{shortTime(trade.date)}
+																					</span>
+																				</div>
 																			</td>
 																			<td className="py-2 px-2 font-mono text-zinc-400">
 																				{trade.symbol}
@@ -269,10 +327,18 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 									<TableRow key={group.key} className="border-zinc-800/60">
 										<TableCell className="pl-3 pr-0" />
 										<TableCell className="pl-1 text-zinc-400 text-xs whitespace-nowrap px-2">
-											{shortDate(trade.date)}
+											<div className="flex flex-col">
+												<span>{shortDate(trade.date)}</span>
+												<span className="text-zinc-600 text-[10px] tabular-nums">
+													{shortTime(trade.date)}
+												</span>
+											</div>
 										</TableCell>
 										<TableCell className="font-semibold text-zinc-50 text-xs px-2">
-											{group.label}
+											<div className="flex flex-col gap-0.5">
+												<span>{group.label}</span>
+												<SourceBadge source={trade.source} side={trade.side} />
+											</div>
 										</TableCell>
 										<TableCell className="hidden sm:table-cell text-zinc-400 text-xs text-right px-2 tabular-nums">
 											{trade.quantity.toLocaleString()}

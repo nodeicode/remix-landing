@@ -92,6 +92,7 @@ interface AccountData {
 	positions: Position[];
 	activities: Activity[];
 	legToParentOrder: Record<string, string>;
+	orderIdToSource: Record<string, string>;
 	buyingPower?: number;
 	equity?: number;
 }
@@ -162,12 +163,14 @@ export default function Dashboard() {
 	const currentAccount = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
 
 	// Destructure from the currently selected account
-	const { portfolioHistory, positions, activities, legToParentOrder } = currentAccount || {
-		portfolioHistory: {},
-		positions: [],
-		activities: [],
-		legToParentOrder: {},
-	};
+	const { portfolioHistory, positions, activities, legToParentOrder, orderIdToSource } =
+		currentAccount || {
+			portfolioHistory: {},
+			positions: [],
+			activities: [],
+			legToParentOrder: {},
+			orderIdToSource: {},
+		};
 
 	const [filteredSymbol, setFilteredSymbol] = useState<string>("all");
 	const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>("1W");
@@ -272,10 +275,13 @@ export default function Dashboard() {
 					price,
 					cashFlow,
 					orderId: resolvedOrderId,
+					source: resolvedOrderId
+						? (orderIdToSource[resolvedOrderId] ?? orderIdToSource[activity.order_id])
+						: orderIdToSource[activity.order_id],
 				};
 			})
 			.sort((a, b) => b.date.getTime() - a.date.getTime());
-	}, [activities, legToParentOrder]);
+	}, [activities, legToParentOrder, orderIdToSource]);
 
 	// Filter trades by underlying ticker and timeframe
 	const filteredTrades = useMemo(() => {

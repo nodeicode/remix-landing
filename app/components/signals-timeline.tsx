@@ -39,9 +39,19 @@ function levelStyles(level: string) {
 	switch (level) {
 		case "ERROR":
 		case "CRITICAL":
-			return { accent: "bg-red-500", badge: "text-red-400", row: "bg-red-950/10", msg: "text-red-300" };
+			return {
+				accent: "bg-red-500",
+				badge: "text-red-400",
+				row: "bg-red-950/10",
+				msg: "text-red-300",
+			};
 		case "WARNING":
-			return { accent: "bg-yellow-500", badge: "text-yellow-400", row: "bg-yellow-950/[0.06]", msg: "text-yellow-200" };
+			return {
+				accent: "bg-yellow-500",
+				badge: "text-yellow-400",
+				row: "bg-yellow-950/[0.06]",
+				msg: "text-yellow-200",
+			};
 		case "DEBUG":
 			return { accent: "bg-zinc-700", badge: "text-zinc-600", row: "", msg: "text-zinc-500" };
 		default: // INFO
@@ -99,10 +109,10 @@ export function LogViewer() {
 		try {
 			const res = await fetch(`/api/signals?env=${env}&startMs=${startMs}&endMs=${endMs}`);
 			if (!res.ok) {
-				const j = await res.json().catch(() => ({})) as { error?: string };
+				const j = (await res.json().catch(() => ({}))) as { error?: string };
 				throw new Error(j.error ?? `HTTP ${res.status}`);
 			}
-			const data = await res.json() as { lines?: LogLine[]; meta?: Meta };
+			const data = (await res.json()) as { lines?: LogLine[]; meta?: Meta };
 			setLines(data.lines ?? []);
 			setMeta(data.meta ?? null);
 		} catch (e) {
@@ -112,7 +122,9 @@ export function LogViewer() {
 		}
 	}, [env, preset, range]);
 
-	useEffect(() => { load(); }, [load]);
+	useEffect(() => {
+		load();
+	}, [load]);
 
 	// Client-side: text filter only (market hours already filtered server-side)
 	const visible = textFilter.trim()
@@ -137,7 +149,11 @@ export function LogViewer() {
 							onClick={() => setEnv(e)}
 							className={cn(
 								"px-3 py-1.5 text-xs rounded-md font-medium transition-all",
-								env === e ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300",
+								env === e
+									? e === "prod"
+										? "bg-blue-600 text-white"
+										: "bg-amber-500 text-white"
+									: "text-zinc-500 hover:text-zinc-300",
 							)}
 						>
 							{e}
@@ -150,7 +166,10 @@ export function LogViewer() {
 					{PRESETS.map(({ key, label }) => (
 						<button
 							key={key}
-							onClick={() => { setPreset(key); setRange(undefined); }}
+							onClick={() => {
+								setPreset(key);
+								setRange(undefined);
+							}}
 							className={cn(
 								"px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors",
 								preset === key
@@ -203,10 +222,18 @@ export function LogViewer() {
 				/>
 
 				{/* Reload */}
-				<Button variant="outline" size="sm" onClick={load} disabled={isLoading} className="h-8 px-3">
-					{isLoading
-						? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-						: <RefreshCw className="w-3.5 h-3.5" />}
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={load}
+					disabled={isLoading}
+					className="h-8 px-3"
+				>
+					{isLoading ? (
+						<Loader2 className="w-3.5 h-3.5 animate-spin" />
+					) : (
+						<RefreshCw className="w-3.5 h-3.5" />
+					)}
 				</Button>
 
 				{/* Stats */}
@@ -226,14 +253,19 @@ export function LogViewer() {
 			)}
 
 			{/* Log terminal */}
-			<div className="rounded-xl border border-zinc-800 bg-zinc-950 font-mono text-xs min-h-96 max-h-[65vh] flex flex-col overflow-hidden">
+			<div className="rounded-xl border border-zinc-800 bg-zinc-950 font-mono text-xs min-h-96 lg:min-h-[60vh] max-h-[65vh] lg:max-h-[80vh] flex flex-col overflow-hidden">
 				{/* Column header */}
 				<div className="flex items-center shrink-0 border-b border-zinc-800 bg-zinc-900/80 select-none">
 					<div className="w-0.75 shrink-0" />
-					<span className="px-3 py-2 w-22.5 text-[10px] text-zinc-600 uppercase tracking-widest">Time</span>
-					<span className="px-3 py-2 w-20 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">Level</span>
-					<span className="px-3 py-2 w-14 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">Env</span>
-					<span className="px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">Message</span>
+					<span className="px-3 py-2 w-22.5 text-[10px] text-zinc-600 uppercase tracking-widest">
+						Time
+					</span>
+					<span className="px-3 py-2 w-20 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
+						Level
+					</span>
+					<span className="px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
+						Message
+					</span>
 				</div>
 
 				{/* Scrollable rows */}
@@ -266,10 +298,12 @@ export function LogViewer() {
 											<div className="h-px flex-1 bg-zinc-800" />
 										</div>
 									)}
-									<div className={cn(
-										"group flex items-stretch border-b border-zinc-800/30 last:border-0 hover:bg-white/2.5 transition-colors",
-										styles.row,
-									)}>
+									<div
+										className={cn(
+											"group flex items-stretch border-b border-zinc-800/30 last:border-0 hover:bg-white/2.5 transition-colors",
+											styles.row,
+										)}
+									>
 										{/* Level accent bar */}
 										<div className={cn("w-0.75 shrink-0", styles.accent)} />
 
@@ -279,26 +313,22 @@ export function LogViewer() {
 										</span>
 
 										{/* Level */}
-										<span className={cn(
-											"shrink-0 flex items-center px-3 w-20 text-[10px] font-semibold uppercase tracking-wider border-r border-zinc-800/40",
-											styles.badge,
-										)}>
+										<span
+											className={cn(
+												"shrink-0 flex items-center px-3 w-20 text-[10px] font-semibold uppercase tracking-wider border-r border-zinc-800/40",
+												styles.badge,
+											)}
+										>
 											{level}
 										</span>
 
-										{/* Env */}
-										<span className={cn(
-											"shrink-0 flex items-center px-3 w-14 text-[10px] border-r border-zinc-800/40",
-											line.env === "prod" ? "text-blue-400" : "text-amber-400",
-										)}>
-											{line.env}
-										</span>
-
 										{/* Message */}
-										<span className={cn(
-											"flex-1 py-2 px-3 break-all whitespace-pre-wrap leading-5 min-w-0 text-[11px]",
-											styles.msg,
-										)}>
+										<span
+											className={cn(
+												"flex-1 py-2 px-3 break-all whitespace-pre-wrap leading-5 min-w-0 text-[11px]",
+												styles.msg,
+											)}
+										>
 											{line.msg}
 										</span>
 									</div>

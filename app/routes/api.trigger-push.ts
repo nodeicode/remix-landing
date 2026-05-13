@@ -205,14 +205,15 @@ async function handleTrigger(request: Request) {
     const activities = await fetchRecentActivities(account);
     if (!activities) continue;
 
-    // Redis cursor: the ID of the newest activity we already notified about.
-    // Alpaca activity IDs are lexicographically sortable (timestamp-prefixed).
-    const cursorKey = `app:last_activity_id:${account.id}`;
-    const lastSeenId: string | null = await redis.get(cursorKey);
+    // Redis cursor: the transaction_time of the newest activity we already notified about.
+    // Using transaction_time (ISO string) instead of activity ID because FILL and OPEXP
+    // activities have different ID formats that can't be reliably compared lexicographically.
+    const cursorKey = `app:last_activity_time:${account.id}`;
+    const lastSeenTime: string | null = await redis.get(cursorKey);
 
-    // Activities are sorted newest-first; find the index of the last-seen one
-    const newActivities = lastSeenId
-      ? activities.filter(a => a.id > lastSeenId)
+    // Activities are sorted newest-first; keep only those strictly newer than the cursor
+    const newActivities = lastSeenTime
+      ? activities.filter(a => new Date(a.transaction_time).getTime() > new Date(lastSeenTime).getTime())
       : [];  // First run: don't spam — just set the cursor
 
     if (newActivities.length > 0) {
@@ -222,9 +223,9 @@ async function handleTrigger(request: Request) {
       }
     }
 
-    // Always advance cursor to the newest activity ID we saw this run
+    // Always advance cursor to the transaction_time of the newest activity we saw this run
     if (activities.length > 0) {
-      await redis.set(cursorKey, activities[0].id);
+      await redis.set(cursorKey, activities[0].transaction_time);
     }
   }
 

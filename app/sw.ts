@@ -92,7 +92,16 @@ sw.addEventListener('push', (event: PushEvent) => {
 	}
 
 	if (!payload?.title) {
-		console.warn('[SW] Push received without title — ignoring');
+		console.warn('[SW] Push received without title — showing fallback to satisfy browser push requirement');
+		// Chrome requires every push event to show a notification; a bare return causes
+		// the browser to inject "This site has been updated in the background" automatically.
+		event.waitUntil(
+			sw.registration.showNotification('Trading Dashboard', {
+				body: 'Background update',
+				tag: 'silent-fallback',
+				silent: true,
+			} as NotificationOptions),
+		);
 		return;
 	}
 

@@ -1,9 +1,4 @@
 {
-	"functions": {
-		"app/routes/api.signals.ts": {
-			"maxDuration": 30
-		}
-	},
 	"crons": [
 		{
 			"path": "/api/trigger-push",

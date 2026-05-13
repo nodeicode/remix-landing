@@ -1,6 +1,11 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { fetchLogs } from "~/utils/cloudwatch.server";
 
+export const config = {
+  runtime: 'nodejs',
+  maxDuration: 30,
+};
+
 const CHUNK_MS = 24 * 60 * 60 * 1000; // 1-day page chunks
 
 // GET /api/signals?env=prod&startMs=X&endMs=Y&beforeMs=Y

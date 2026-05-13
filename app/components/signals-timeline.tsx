@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { RefreshCw, Loader2, Terminal, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
@@ -86,6 +86,14 @@ export function LogViewer() {
 	const [meta, setMeta] = useState<Meta | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [isLoadingMore, setIsLoadingMore] = useState(false);
+	const [hasMore, setHasMore] = useState(false);
+	const [loadMoreKey, setLoadMoreKey] = useState(0);
+	const sentinelRef = useRef<HTMLDivElement>(null);
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const nextBeforeMsRef = useRef<number | null>(null);
+	const isLoadingMoreRef = useRef(false);
+	const rangeParamsRef = useRef<{ startMs: number; endMs: number } | null>(null);
 
 	const load = useCallback(async () => {
 		const now = Date.now();
@@ -104,17 +112,30 @@ export function LogViewer() {
 			startMs = now - 7 * 86_400_000;
 		}
 
+		rangeParamsRef.current = { startMs, endMs };
+		nextBeforeMsRef.current = null;
+
 		setIsLoading(true);
 		setError(null);
+		setLines([]);
+		setHasMore(false);
 		try {
-			const res = await fetch(`/api/signals?env=${env}&startMs=${startMs}&endMs=${endMs}`);
+			const res = await fetch(
+				`/api/signals?env=${env}&startMs=${startMs}&endMs=${endMs}&beforeMs=${endMs}`,
+			);
 			if (!res.ok) {
 				const j = (await res.json().catch(() => ({}))) as { error?: string };
 				throw new Error(j.error ?? `HTTP ${res.status}`);
 			}
-			const data = (await res.json()) as { lines?: LogLine[]; meta?: Meta };
+			const data = (await res.json()) as {
+				lines?: LogLine[];
+				meta?: Meta;
+				nextBeforeMs?: number | null;
+			};
 			setLines(data.lines ?? []);
 			setMeta(data.meta ?? null);
+			nextBeforeMsRef.current = data.nextBeforeMs ?? null;
+			setHasMore(data.nextBeforeMs != null);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "Failed to load logs");
 		} finally {
@@ -122,9 +143,52 @@ export function LogViewer() {
 		}
 	}, [env, preset, range]);
 
+	const loadMore = useCallback(async () => {
+		if (isLoadingMoreRef.current) return;
+		const before = nextBeforeMsRef.current;
+		const params = rangeParamsRef.current;
+		if (!before || !params) return;
+
+		isLoadingMoreRef.current = true;
+		setIsLoadingMore(true);
+		try {
+			const res = await fetch(
+				`/api/signals?env=${env}&startMs=${params.startMs}&endMs=${params.endMs}&beforeMs=${before}`,
+			);
+			if (!res.ok) return;
+			const data = (await res.json()) as {
+				lines?: LogLine[];
+				meta?: Meta;
+				nextBeforeMs?: number | null;
+			};
+			setLines((prev) => [...prev, ...(data.lines ?? [])]);
+			nextBeforeMsRef.current = data.nextBeforeMs ?? null;
+			setHasMore(data.nextBeforeMs != null);
+		} catch (_err) {
+			// silently ignore; sentinel remains so next scroll re-triggers
+		} finally {
+			isLoadingMoreRef.current = false;
+			setIsLoadingMore(false);
+			setLoadMoreKey((k) => k + 1); // force observer to re-subscribe
+		}
+	}, [env]);
+
 	useEffect(() => {
 		load();
 	}, [load]);
+
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		if (!sentinel || !hasMore) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting) loadMore();
+			},
+			{ root: scrollRef.current, rootMargin: "200px" },
+		);
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, [hasMore, loadMore, loadMoreKey]);
 
 	// Client-side: text filter only (market hours already filtered server-side)
 	const visible = textFilter.trim()
@@ -269,7 +333,7 @@ export function LogViewer() {
 				</div>
 
 				{/* Scrollable rows */}
-				<div className="overflow-y-auto flex-1">
+				<div ref={scrollRef} className="overflow-y-auto flex-1">
 					{isLoading && lines.length === 0 ? (
 						<div className="flex items-center justify-center h-40 text-zinc-600 gap-2">
 							<Loader2 className="w-4 h-4 animate-spin" />
@@ -336,6 +400,13 @@ export function LogViewer() {
 							);
 						})
 					)}
+					{isLoadingMore && (
+						<div className="flex items-center justify-center py-4 text-zinc-600 gap-2">
+							<Loader2 className="w-4 h-4 animate-spin" />
+							<span className="text-xs">Loading older logs…</span>
+						</div>
+					)}
+					<div ref={sentinelRef} />
 				</div>
 			</div>
 		</div>

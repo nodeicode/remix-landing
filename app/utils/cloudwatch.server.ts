@@ -16,6 +16,7 @@ const LOG_GROUPS: Record<"prod" | "staging", string> = {
 };
 
 const MAX_LINES_PER_ENV = 2000;
+const MAX_PAGES = 3; // safety cap: prevents runaway sequential calls on busy log groups
 
 let _client: CloudWatchLogsClient | null = null;
 function getClient() {
@@ -44,6 +45,7 @@ export async function fetchLogs({
 		envs.map(async (env) => {
 			const lines: LogLine[] = [];
 			let nextToken: string | undefined;
+			let pages = 0;
 			do {
 				const res = await client.send(
 					new FilterLogEventsCommand({
@@ -55,6 +57,7 @@ export async function fetchLogs({
 						limit: 1000,
 					}),
 				);
+				pages++;
 				for (const e of res.events ?? []) {
 					lines.push({
 						ts: e.timestamp ?? 0,
@@ -64,7 +67,7 @@ export async function fetchLogs({
 					});
 				}
 				nextToken = res.nextToken;
-			} while (nextToken && lines.length < MAX_LINES_PER_ENV);
+			} while (nextToken && lines.length < MAX_LINES_PER_ENV && pages < MAX_PAGES);
 
 			if (lines.length >= MAX_LINES_PER_ENV) truncated = true;
 			allLines.push(...lines);

@@ -152,7 +152,7 @@ function formatActivityNotification(activity: AlpacaActivity, accountName: strin
     body = `${qty}${isOption ? ' contracts' : ' shares'} @ $${price.toFixed(2)} · $${value.toFixed(2)} cost`;
   }
 
-  return { title, body, tag: `fill-${activity.id}`, data: { url: '/dashboard' } };
+  return { title, body, tag: `fill-${activity.id}`, timestamp: new Date(activity.transaction_time).getTime(), data: { url: '/dashboard' } };
 }
 
 // --- Main Handler ---
@@ -228,9 +228,9 @@ async function handleTrigger(request: Request) {
     }
   }
 
-  // 3. Send notifications
+  // 3. Send notifications — one per fill
   if (allNotifications.length > 0) {
-    console.log(`[Trigger Push] Sending ${allNotifications.length} notifications`);
+    console.log(`[Trigger Push] Sending ${allNotifications.length} notification(s)`);
     for (const note of allNotifications) {
       const payload = JSON.stringify(note);
       await Promise.all(

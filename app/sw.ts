@@ -75,6 +75,7 @@ interface PushPayload {
 	icon?: string;
 	badge?: string;
 	tag?: string;
+	timestamp?: number;
 	data?: Record<string, unknown>;
 }
 
@@ -95,13 +96,28 @@ sw.addEventListener('push', (event: PushEvent) => {
 		return;
 	}
 
+	const tag = payload.tag ?? 'trading-update';
+
 	event.waitUntil(
-		sw.registration.showNotification(payload.title, {
-			body: payload.body,
-			icon: payload.icon ?? '/icon-192.png',
-			badge: payload.badge ?? '/icon-192.png',
-			tag: payload.tag ?? 'trading-update',
-			data: payload.data ?? { url: '/dashboard' },
+		sw.registration.getNotifications().then((existing) => {
+			// Close stale trading notifications so the new one always appears fresh
+			existing
+				.filter(
+					(n) =>
+						n.tag?.startsWith('fill-') ||
+						n.tag === 'trading-update' ||
+						n.tag === 'trading-summary',
+				)
+				.forEach((n) => n.close());
+			return sw.registration.showNotification(payload!.title, {
+				body: payload!.body,
+				icon: payload!.icon ?? '/icon-192.png',
+				badge: payload!.badge ?? '/icon-192.png',
+				tag,
+				data: payload!.data ?? { url: '/dashboard' },
+				timestamp: payload!.timestamp ?? Date.now(),
+				renotify: true,
+			} as NotificationOptions);
 		}),
 	);
 });

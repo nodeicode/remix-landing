@@ -1,7 +1,9 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { fetchLogs } from "~/utils/cloudwatch.server";
 
-// GET /api/signals?env=prod&startMs=X&endMs=Y
+const CHUNK_MS = 24 * 60 * 60 * 1000; // 1-day page chunks
+
+// GET /api/signals?env=prod&startMs=X&endMs=Y&beforeMs=Y
 export async function loader({ request }: LoaderFunctionArgs) {
 	const url = new URL(request.url);
 
@@ -14,17 +16,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const now = Date.now();
 	const startMs = parseInt(url.searchParams.get("startMs") ?? String(now - 7 * 86_400_000), 10);
 	const endMs = parseInt(url.searchParams.get("endMs") ?? String(now), 10);
+	const beforeMs = parseInt(url.searchParams.get("beforeMs") ?? String(endMs), 10);
 
 	if (isNaN(startMs) || isNaN(endMs) || startMs >= endMs) {
 		return Response.json({ error: "Invalid startMs/endMs" }, { status: 400 });
 	}
 
+	const chunkStartMs = Math.max(startMs, beforeMs - CHUNK_MS);
 	const t0 = Date.now();
 	try {
 		const result = await fetchLogs({
 			envs: envs.length > 0 ? envs : ["prod"],
-			startMs,
-			endMs,
+			startMs: chunkStartMs,
+			endMs: beforeMs,
 		});
 
 		// Server-side filter: weekdays + 13:00–21:00 UTC (market hours) only
@@ -36,15 +40,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			return h >= 13 && h < 21;
 		});
 
+		// newest first within this chunk
+		filtered.reverse();
+
+		const nextBeforeMs = chunkStartMs > startMs ? chunkStartMs : null;
+
 		return Response.json({
 			lines: filtered,
 			meta: {
 				count: filtered.length,
 				truncated: result.truncated,
 				fetchMs: Date.now() - t0,
-				startMs,
-				endMs,
+				startMs: chunkStartMs,
+				endMs: beforeMs,
 			},
+			nextBeforeMs,
 		});
 	} catch (err) {
 		console.error("[api/signals] fetchLogs error:", err);

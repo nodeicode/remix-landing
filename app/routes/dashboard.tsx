@@ -102,6 +102,7 @@ interface AccountData {
 	activities: Activity[];
 	legToParentOrder: Record<string, string>;
 	orderIdToSource: Record<string, string>;
+	cashFlows?: { time: number; amount: number }[];
 	buyingPower?: number;
 	equity?: number;
 }
@@ -172,14 +173,21 @@ export default function Dashboard() {
 	const currentAccount = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
 
 	// Destructure from the currently selected account
-	const { portfolioHistory, positions, activities, legToParentOrder, orderIdToSource } =
-		currentAccount || {
-			portfolioHistory: {},
-			positions: [],
-			activities: [],
-			legToParentOrder: {},
-			orderIdToSource: {},
-		};
+	const {
+		portfolioHistory,
+		positions,
+		activities,
+		legToParentOrder,
+		orderIdToSource,
+		cashFlows,
+	} = currentAccount || {
+		portfolioHistory: {},
+		positions: [],
+		activities: [],
+		legToParentOrder: {},
+		orderIdToSource: {},
+		cashFlows: [] as { time: number; amount: number }[],
+	};
 
 	const [activeTab, setActiveTab] = useState<"portfolio" | "signals">("signals");
 	const [filteredSymbol, setFilteredSymbol] = useState<string>("all");
@@ -378,6 +386,7 @@ export default function Dashboard() {
 				currentValue: 0,
 				pnl: 0,
 				pnlPercent: 0,
+				netDeposits: 0,
 				sharpeRatio: 0,
 				sortinoRatio: 0,
 				maxDrawdown: 0,
@@ -388,8 +397,13 @@ export default function Dashboard() {
 		const startingValue = historyData.base_value;
 		const currentValue = historyData.equity[historyData.equity.length - 1];
 
-		// Calculate P&L directly from equity values instead of using API's profit_loss
-		const pnl = currentValue - startingValue;
+		// Strip cash deposits/withdrawals within this period from the equity delta so
+		// P&L only reflects trading activity, not capital contributions.
+		const periodStart = historyData.timestamp[0];
+		const netDeposits = (cashFlows ?? [])
+			.filter((cf) => cf.time >= periodStart)
+			.reduce((sum, cf) => sum + cf.amount, 0);
+		const pnl = currentValue - startingValue - netDeposits;
 		const pnlPercent = startingValue !== 0 ? pnl / startingValue : 0;
 
 		// Calculate returns array for risk metrics
@@ -406,6 +420,7 @@ export default function Dashboard() {
 				currentValue,
 				pnl,
 				pnlPercent,
+				netDeposits,
 				sharpeRatio: 0,
 				sortinoRatio: 0,
 				maxDrawdown: 0,
@@ -477,12 +492,13 @@ export default function Dashboard() {
 			currentValue,
 			pnl,
 			pnlPercent,
+			netDeposits,
 			sharpeRatio,
 			sortinoRatio,
 			maxDrawdown,
 			calmarRatio,
 		};
-	}, [portfolioHistory, selectedTimeframe]);
+	}, [portfolioHistory, selectedTimeframe, cashFlows]);
 
 	const handleSort = (key: string) => {
 		setSortConfig((current) => {
@@ -778,6 +794,7 @@ export default function Dashboard() {
 								<PortfolioChart
 									data={portfolioHistory[selectedTimeframe]}
 									timeframe={selectedTimeframe}
+									netDeposits={portfolioMetrics.netDeposits}
 								/>
 							</div>
 						)}

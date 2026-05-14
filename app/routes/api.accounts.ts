@@ -63,6 +63,9 @@ interface AccountData {
 	activities: Activity[];
 	legToParentOrder: Record<string, string>;
 	orderIdToSource: Record<string, string>;
+	/** Unix-second timestamps + amounts for non-trading cash flows (deposits/withdrawals).
+	 *  Positive = money in (deposit), negative = money out (withdrawal). */
+	cashFlows: { time: number; amount: number }[];
 	buyingPower?: number;
 	equity?: number;
 }
@@ -211,6 +214,33 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 			console.error(`[API] Error fetching OPEXP for account ${name}:`, e);
 		}
 
+		// Fetch non-trading cash flows (deposits/withdrawals) so the UI can subtract
+		// them from equity-based P&L. CSD = cash deposit, CSW = cash withdrawal,
+		// JNLC = journal cash (internal transfers). net_amount is positive for inflows.
+		const cashFlows: { time: number; amount: number }[] = [];
+		try {
+			for (const actType of ['CSD', 'CSW', 'JNLC']) {
+				const cashRes = await fetch(
+					`${baseUrl}/v2/account/activities/${actType}?page_size=100&after=${afterDate}`,
+					{ headers },
+				);
+				if (!cashRes.ok) continue;
+				const cashPage: any[] = await cashRes.json();
+				for (const cf of cashPage) {
+					const dateStr: string = cf.date ?? cf.transaction_time ?? '';
+					if (!dateStr) continue;
+					const ts = Math.floor(new Date(dateStr).getTime() / 1000);
+					const amount = parseFloat(cf.net_amount ?? cf.amount ?? 0);
+					if (!isNaN(ts) && !isNaN(amount) && amount !== 0) {
+						cashFlows.push({ time: ts, amount });
+					}
+				}
+			}
+			console.log(`[API] ${name}: fetched ${cashFlows.length} cash flow activities`);
+		} catch (e) {
+			console.error(`[API] Error fetching cash flows for account ${name}:`, e);
+		}
+
 		const portfolioHistoryResults = await Promise.all(portfolioHistoryPromises);
 		const portfolioHistoryMap: Record<string, PortfolioHistoryData> = Object.fromEntries(
 			portfolioHistoryResults
@@ -269,6 +299,7 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 			activities: allActivities,
 			legToParentOrder,
 			orderIdToSource,
+			cashFlows,
 			buyingPower: accountInfo ? parseFloat(accountInfo.buying_power) : 0,
 			equity: accountInfo ? parseFloat(accountInfo.equity) : 0,
 		};

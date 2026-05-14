@@ -19,6 +19,9 @@ interface PortfolioChartProps {
 		timeframe: string;
 	};
 	timeframe: string;
+	/** Net cash deposits within the current timeframe window (positive = deposited).
+	 *  Subtracted from the raw equity delta so the displayed P&L is trading-only. */
+	netDeposits?: number;
 }
 
 function formatDate(timestamp: number, timeframe: string): string {
@@ -32,7 +35,7 @@ function formatDate(timestamp: number, timeframe: string): string {
 	}
 }
 
-export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
+export function PortfolioChart({ data, timeframe, netDeposits = 0 }: PortfolioChartProps) {
 	if (!data || !data.timestamp || data.timestamp.length === 0) {
 		return (
 			<div className="flex items-center justify-center h-48 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-500 text-sm">
@@ -42,20 +45,30 @@ export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
 	}
 
 	// eslint-disable-next-line react-hooks/rules-of-hooks
-	const chartData = useMemo(
-		() =>
-			data.timestamp.map((ts, i) => ({
+	const chartData = useMemo(() => {
+		// Alpaca returns 0 for timestamps with no data (pre-market, inactive days).
+		// Forward-fill with the last valid equity so the line stays flat instead of
+		// crashing to $0. Seed with base_value so leading zeros are also covered.
+		let lastValid = data.base_value || 0;
+		return data.timestamp.map((ts, i) => {
+			const eq = data.equity[i];
+			if (eq != null && eq > 0) lastValid = eq;
+			return {
 				date: ts,
-				equity: data.equity[i],
-				profit_loss: data.profit_loss[i],
-				profit_loss_pct: data.profit_loss_pct[i],
-			})),
-		[data],
-	);
+				equity: lastValid,
+				profit_loss: data.profit_loss[i] ?? 0,
+				profit_loss_pct: data.profit_loss_pct[i] ?? 0,
+			};
+		});
+	}, [data]);
 
-	const currentEquity = data.equity[data.equity.length - 1];
-	const startEquity = data.equity[0];
-	const change = currentEquity - startEquity;
+	// Use first / last non-zero equity so header metrics are never corrupted by
+	// Alpaca's placeholder zeros.
+	const currentEquity =
+		[...data.equity].reverse().find((e) => e != null && e > 0) ?? data.base_value;
+	const startEquity = data.equity.find((e) => e != null && e > 0) ?? data.base_value;
+	// Subtract net deposits so the badge shows trading P&L, not capital inflows.
+	const change = currentEquity - startEquity - netDeposits;
 	const changePct = startEquity !== 0 ? (change / startEquity) * 100 : 0;
 	const isPositive = change >= 0;
 	const lineColor = isPositive ? "#34d399" : "#f87171";

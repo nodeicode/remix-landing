@@ -102,7 +102,6 @@ interface AccountData {
 	activities: Activity[];
 	legToParentOrder: Record<string, string>;
 	orderIdToSource: Record<string, string>;
-	cashFlows?: { time: number; amount: number }[];
 	buyingPower?: number;
 	equity?: number;
 }
@@ -173,21 +172,14 @@ export default function Dashboard() {
 	const currentAccount = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
 
 	// Destructure from the currently selected account
-	const {
-		portfolioHistory,
-		positions,
-		activities,
-		legToParentOrder,
-		orderIdToSource,
-		cashFlows,
-	} = currentAccount || {
-		portfolioHistory: {},
-		positions: [],
-		activities: [],
-		legToParentOrder: {},
-		orderIdToSource: {},
-		cashFlows: [] as { time: number; amount: number }[],
-	};
+	const { portfolioHistory, positions, activities, legToParentOrder, orderIdToSource } =
+		currentAccount || {
+			portfolioHistory: {},
+			positions: [],
+			activities: [],
+			legToParentOrder: {},
+			orderIdToSource: {},
+		};
 
 	const [activeTab, setActiveTab] = useState<"portfolio" | "signals">("signals");
 	const [filteredSymbol, setFilteredSymbol] = useState<string>("all");
@@ -386,7 +378,6 @@ export default function Dashboard() {
 				currentValue: 0,
 				pnl: 0,
 				pnlPercent: 0,
-				netDeposits: 0,
 				sharpeRatio: 0,
 				sortinoRatio: 0,
 				maxDrawdown: 0,
@@ -394,23 +385,21 @@ export default function Dashboard() {
 			};
 		}
 
+		// Use Alpaca's values directly. The loader already patches the last data
+		// point of every timeframe with live equity so these are always current.
+		const lastIdx = historyData.equity.length - 1;
 		const startingValue = historyData.base_value;
-		const currentValue = historyData.equity[historyData.equity.length - 1];
+		const currentValue = historyData.equity[lastIdx] ?? 0;
+		const pnl = historyData.profit_loss[lastIdx] ?? currentValue - startingValue;
+		const pnlPercent =
+			historyData.profit_loss_pct[lastIdx] ?? (startingValue !== 0 ? pnl / startingValue : 0);
 
-		// Strip cash deposits/withdrawals within this period from the equity delta so
-		// P&L only reflects trading activity, not capital contributions.
-		const periodStart = historyData.timestamp[0];
-		const netDeposits = (cashFlows ?? [])
-			.filter((cf) => cf.time >= periodStart)
-			.reduce((sum, cf) => sum + cf.amount, 0);
-		const pnl = currentValue - startingValue - netDeposits;
-		const pnlPercent = startingValue !== 0 ? pnl / startingValue : 0;
-
-		// Calculate returns array for risk metrics
+		// Compute period-over-period returns from valid (non-zero) equity data points
+		// so Alpaca placeholder zeros don't corrupt Sharpe/Sortino/drawdown.
+		const validEquities = historyData.equity.filter((e) => e != null && e > 0);
 		const returns: number[] = [];
-		for (let i = 1; i < historyData.equity.length; i++) {
-			const ret =
-				(historyData.equity[i] - historyData.equity[i - 1]) / historyData.equity[i - 1];
+		for (let i = 1; i < validEquities.length; i++) {
+			const ret = (validEquities[i] - validEquities[i - 1]) / validEquities[i - 1];
 			returns.push(ret);
 		}
 
@@ -420,7 +409,6 @@ export default function Dashboard() {
 				currentValue,
 				pnl,
 				pnlPercent,
-				netDeposits,
 				sharpeRatio: 0,
 				sortinoRatio: 0,
 				maxDrawdown: 0,
@@ -460,10 +448,10 @@ export default function Dashboard() {
 		const sortinoRatio =
 			downsideStdDev !== 0 ? (meanReturn / downsideStdDev) * annualizationFactor : 0;
 
-		// Maximum Drawdown
-		let peak = historyData.equity[0];
+		// Maximum Drawdown (computed on valid equities only)
+		let peak = validEquities[0] ?? 0;
 		let maxDrawdown = 0;
-		for (const equity of historyData.equity) {
+		for (const equity of validEquities) {
 			if (equity > peak) {
 				peak = equity;
 			}
@@ -492,13 +480,12 @@ export default function Dashboard() {
 			currentValue,
 			pnl,
 			pnlPercent,
-			netDeposits,
 			sharpeRatio,
 			sortinoRatio,
 			maxDrawdown,
 			calmarRatio,
 		};
-	}, [portfolioHistory, selectedTimeframe, cashFlows]);
+	}, [portfolioHistory, selectedTimeframe]);
 
 	const handleSort = (key: string) => {
 		setSortConfig((current) => {
@@ -794,7 +781,6 @@ export default function Dashboard() {
 								<PortfolioChart
 									data={portfolioHistory[selectedTimeframe]}
 									timeframe={selectedTimeframe}
-									netDeposits={portfolioMetrics.netDeposits}
 								/>
 							</div>
 						)}

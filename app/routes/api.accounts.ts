@@ -67,6 +67,63 @@ interface AccountData {
 	equity?: number;
 }
 
+/**
+ * Centralised post-processing applied to every portfolio history timeframe
+ * before the data leaves the server.  All graph normalisation lives here so
+ * the UI never needs to touch raw Alpaca values.
+ *
+ * Steps (applied per timeframe):
+ *  1. Strip zero-equity buckets – Alpaca emits zeroes for non-trading hours
+ *     which crush the Y-axis range and corrupt trend-lines.
+ *  2. Patch the LAST existing point in-place with the current live equity so
+ *     every timeframe chart is always up-to-date.  We intentionally never
+ *     append a synthetic new point – that previously caused a discontinuity
+ *     spike when the last Alpaca bucket was stale by more than one period.
+ *  3. Recompute profit_loss and profit_loss_pct from scratch using base_value
+ *     and the (now-clean) equity series.  Alpaca's own profit_loss values are
+ *     often stale or inconsistent; recomputing ensures the header badge, the
+ *     tooltip, and the dashboard metrics cards all show the same number.
+ */
+function normalizePortfolioHistory(
+	map: Record<string, PortfolioHistoryData>,
+	liveEquity: number,
+): void {
+	for (const tf of Object.keys(map)) {
+		const h = map[tf];
+		if (!h?.equity?.length) continue;
+
+		// ── 1. Strip zero-equity rows ──────────────────────────────────────
+		const tsOut: number[] = [];
+		const eqOut: number[] = [];
+		for (let i = 0; i < h.timestamp.length; i++) {
+			const eq = h.equity[i];
+			if (eq != null && eq > 0) {
+				tsOut.push(h.timestamp[i]);
+				eqOut.push(eq);
+			}
+		}
+		if (tsOut.length === 0) continue;
+
+		// ── 2. Patch tail with live equity (replace in-place, never append) ──
+		if (!isNaN(liveEquity) && liveEquity > 0) {
+			eqOut[eqOut.length - 1] = liveEquity;
+		}
+
+		// ── 3. Recompute P&L consistently from base_value ─────────────────
+		// Use Alpaca's base_value when it is a valid positive number; otherwise
+		// fall back to the first non-zero equity in the series.
+		const base = h.base_value > 0 ? h.base_value : eqOut[0];
+		const plOut = eqOut.map((eq) => eq - base);
+		const plPctOut = eqOut.map((eq) => (base !== 0 ? (eq - base) / base : 0));
+
+		h.timestamp = tsOut;
+		h.equity = eqOut;
+		h.profit_loss = plOut;
+		h.profit_loss_pct = plPctOut;
+		h.base_value = base;
+	}
+}
+
 // Helper to fetch data for a single account
 async function fetchAccountData(config: AccountConfig): Promise<AccountData | null> {
 	const { apiKey, secretKey, baseUrl, id, name, type } = config;
@@ -217,6 +274,14 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 				.filter((r) => r.data !== null)
 				.map(({ timeframe, data }) => [timeframe, data])
 		);
+
+		// ── Centralised graph normalisation ───────────────────────────────────
+		// Live equity from /v2/account is the most up-to-date value available.
+		// normalizePortfolioHistory strips zeros, patches the tail of every
+		// timeframe with this value, and recomputes P&L/P&L% consistently so
+		// all charts and metric cards are in sync.
+		const liveEquity = accountInfo ? parseFloat(accountInfo.equity) : NaN;
+		normalizePortfolioHistory(portfolioHistoryMap, liveEquity);
 
 		return {
 			id,

@@ -218,48 +218,6 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 				.map(({ timeframe, data }) => [timeframe, data])
 		);
 
-		// Alpaca's portfolio-history endpoint lags badly for 1W/1M/3M/ALL —
-		// it can be hours-to-days stale. The `/v2/account` equity field is
-		// live, and 1D's last bucket also reflects the latest. Use whichever
-		// is freshest to patch each timeframe's tail so the chart and metrics
-		// always show real-time values without waiting on Alpaca.
-		const liveEquity = accountInfo ? parseFloat(accountInfo.equity) : NaN;
-		const oneDay = portfolioHistoryMap["1D"];
-		const oneDayLastEquity =
-			oneDay && oneDay.equity && oneDay.equity.length > 0
-				? oneDay.equity[oneDay.equity.length - 1]
-				: NaN;
-		const freshEquity = !isNaN(liveEquity)
-			? liveEquity
-			: !isNaN(oneDayLastEquity)
-				? oneDayLastEquity
-				: NaN;
-
-		if (!isNaN(freshEquity)) {
-			const nowTs = Math.floor(Date.now() / 1000);
-			for (const tf of Object.keys(portfolioHistoryMap)) {
-				const h = portfolioHistoryMap[tf];
-				if (!h || !h.equity || h.equity.length === 0) continue;
-				const base = h.base_value || h.equity[0];
-				const newPl = freshEquity - base;
-				const newPlPct = base !== 0 ? newPl / base : 0;
-				const lastIdx = h.equity.length - 1;
-				const lastTs = h.timestamp[lastIdx];
-				// If last bucket is recent (<1h old), replace it in place; else
-				// append a "now" point so the chart line extends to the present.
-				if (nowTs - lastTs < 3600) {
-					h.equity[lastIdx] = freshEquity;
-					h.profit_loss[lastIdx] = newPl;
-					h.profit_loss_pct[lastIdx] = newPlPct;
-				} else {
-					h.timestamp.push(nowTs);
-					h.equity.push(freshEquity);
-					h.profit_loss.push(newPl);
-					h.profit_loss_pct.push(newPlPct);
-				}
-			}
-		}
-
 		return {
 			id,
 			name,

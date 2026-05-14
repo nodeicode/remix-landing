@@ -9,6 +9,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-cloudwatch-logs": "^3.1045.0",
+		"@aws-sdk/client-ssm": "^3.1047.0",
 		"@heroicons/react": "^1.0.6",
 		"@radix-ui/react-select": "^2.2.6",
 		"@radix-ui/react-separator": "^1.1.8",

@@ -37,6 +37,7 @@ import {
 import { cn } from "../lib/utils";
 import { PortfolioChart } from "../components/portfolio-chart";
 import { SignalsTimeline } from "../components/signals-timeline";
+import { ConfigCard } from "../components/config-card";
 
 // Types for Alpaca API responses
 interface PortfolioHistoryData {
@@ -762,7 +763,8 @@ export default function Dashboard() {
 				</div>
 				{/* ── Logs tab ── */}
 				{activeTab === "signals" && (
-					<div className="max-w-6xl mx-auto w-full p-3 sm:p-5 pb-12">
+					<div className="max-w-6xl mx-auto w-full p-3 sm:p-5 pb-12 space-y-4 sm:space-y-6">
+						<ConfigCard />
 						<SignalsTimeline />
 					</div>
 				)}

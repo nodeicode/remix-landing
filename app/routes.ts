@@ -10,4 +10,5 @@ export default [
   route("api/test-notification", "routes/api.test-notification.ts"),
   route("api/accounts", "routes/api.accounts.ts"),
   route("api/signals", "routes/api.signals.ts"),
+  route("api/config", "routes/api.config.ts"),
 ] satisfies RouteConfig;

@@ -36,6 +36,26 @@ interface TradeGroup {
 	date: Date;
 }
 
+function consolidateLegs(trades: Trade[]): Trade[] {
+	const merged = new Map<string, Trade>();
+	for (const trade of trades) {
+		const legKey = `${trade.symbol}|${trade.side}|${trade.price}`;
+		const existing = merged.get(legKey);
+		if (existing) {
+			merged.set(legKey, {
+				...existing,
+				quantity: existing.quantity + trade.quantity,
+				cashFlow: existing.cashFlow + trade.cashFlow,
+				// keep the earliest date
+				date: trade.date < existing.date ? trade.date : existing.date,
+			});
+		} else {
+			merged.set(legKey, { ...trade });
+		}
+	}
+	return Array.from(merged.values());
+}
+
 function buildTradeGroups(trades: Trade[]): TradeGroup[] {
 	const buckets = new Map<string, Trade[]>();
 	for (const trade of trades) {
@@ -44,17 +64,18 @@ function buildTradeGroups(trades: Trade[]): TradeGroup[] {
 		buckets.get(key)!.push(trade);
 	}
 	return Array.from(buckets.entries()).map(([key, group]) => {
-		const isMultiLeg = new Set(group.map((t) => t.symbol)).size > 1;
-		const totalCashFlow = group.reduce((s, t) => s + t.cashFlow, 0);
+		const consolidated = consolidateLegs(group);
+		const isMultiLeg = new Set(consolidated.map((t) => t.symbol)).size > 1;
+		const totalCashFlow = consolidated.reduce((s, t) => s + t.cashFlow, 0);
 		return {
 			key,
 			label: isMultiLeg
-				? `${group[0].underlyingTicker} \u2014 ${group.length} Legs`
-				: group[0].underlyingTicker,
-			trades: group,
+				? `${consolidated[0].underlyingTicker} \u2014 ${consolidated.length} Legs`
+				: consolidated[0].underlyingTicker,
+			trades: consolidated,
 			isMultiLeg,
 			totalCashFlow,
-			date: group[0].date,
+			date: consolidated[0].date,
 		};
 	});
 }
@@ -229,6 +250,12 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 								const isExpanded = expandedKeys.has(group.key);
 
 								if (group.isMultiLeg) {
+									const mlCommonQty = group.trades[0].quantity;
+									const mlNetPrice = group.trades.reduce(
+										(sum, t) =>
+											sum + (t.side === "sell" ? -t.price : t.side === "buy" ? t.price : 0),
+										0,
+									);
 									return (
 										<React.Fragment key={group.key}>
 											<TableRow
@@ -259,14 +286,14 @@ export function TradesTable({ trades, onSort, sortConfig }: TradesTableProps) {
 														/>
 													</div>
 												</TableCell>
-												<TableCell className="hidden sm:table-cell text-zinc-500 text-xs text-right px-2">
-													&mdash;
+												<TableCell className="hidden sm:table-cell text-zinc-400 text-xs text-right px-2 tabular-nums">
+													{mlCommonQty.toLocaleString()}
 												</TableCell>
 												<TableCell className="hidden sm:table-cell text-zinc-500 text-xs px-2">
 													&mdash;
 												</TableCell>
-												<TableCell className="hidden sm:table-cell text-zinc-500 text-xs px-2">
-													&mdash;
+												<TableCell className="hidden sm:table-cell text-xs font-mono text-right px-2 tabular-nums text-zinc-300">
+													{mlNetPrice >= 0 ? "+" : "-"}${Math.abs(mlNetPrice).toFixed(2)}
 												</TableCell>
 												<TableCell className="text-right pr-3 px-2">
 													<CashFlowCell value={group.totalCashFlow} />

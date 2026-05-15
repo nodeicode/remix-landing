@@ -526,9 +526,23 @@ export function ActivePositions({ positions, getUnderlyingTicker }: ActivePositi
 													)}
 												</div>
 											</td>
-											<td className="px-4 py-3 text-right text-zinc-500 text-xs">—</td>
-											<td className="px-4 py-3 text-right hidden sm:table-cell text-zinc-500 text-xs">
-												—
+											<td className="px-4 py-3 text-right text-zinc-300 text-xs tabular-nums">
+												{group.multiplier.toLocaleString()}
+											</td>
+											<td className="px-4 py-3 text-right hidden sm:table-cell text-xs tabular-nums">
+												{(() => {
+													const netEntry = group.legs.reduce(
+														(sum, leg) =>
+															sum +
+															(leg.side === "long" ? 1 : -1) * parseFloat(leg.avg_entry_price),
+														0,
+													);
+													return (
+														<span className="text-zinc-300">
+															{netEntry >= 0 ? "+" : "-"}${Math.abs(netEntry).toFixed(2)}
+														</span>
+													);
+												})()}
 											</td>
 											<td className="px-4 py-3 text-right hidden sm:table-cell text-zinc-500 text-xs">
 												—

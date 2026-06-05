@@ -39,4 +39,10 @@ function serviceWorkerPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [serviceWorkerPlugin(), tailwindcss(), reactRouter(), tsconfigPaths()],
+  resolve: {
+    dedupe: ["react", "react-dom"],
+  },
+  optimizeDeps: {
+    include: ["@radix-ui/react-popover", "recharts"],
+  },
 });

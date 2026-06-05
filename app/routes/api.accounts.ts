@@ -54,6 +54,11 @@ interface AccountConfig {
 	baseUrl: string;
 }
 
+interface CashFlow {
+	time: number;
+	amount: number;
+}
+
 interface AccountData {
 	id: string;
 	name: string;
@@ -63,8 +68,58 @@ interface AccountData {
 	activities: Activity[];
 	legToParentOrder: Record<string, string>;
 	orderIdToSource: Record<string, string>;
+	/** Non-trading cash flows (CSD/CSW/JNLC). Positive = inflow, negative = outflow. */
+	cashFlows: CashFlow[];
 	buyingPower?: number;
 	equity?: number;
+}
+
+/** Cash flows within [periodStart, ∞), excluding initial funding that matches opening equity. */
+function getPeriodCashFlows(
+	cashFlows: CashFlow[],
+	periodStart: number,
+	firstRawEquity: number,
+): CashFlow[] {
+	const inPeriod = cashFlows.filter((cf) => cf.time >= periodStart);
+	if (inPeriod.length === 1 && inPeriod[0].amount > 0 && firstRawEquity > 0) {
+		const cf = inPeriod[0];
+		// Paper JNLC initial funding often settles after the first equity snapshot but
+		// matches opening balance — subtracting it would double-count capital.
+		if (Math.abs(cf.amount - firstRawEquity) / firstRawEquity < 0.02) {
+			return [];
+		}
+	}
+	return inPeriod;
+}
+
+async function fetchPaginatedActivities(
+	baseUrl: string,
+	headers: Record<string, string>,
+	activityType: string,
+	afterDate: string,
+	pageSize: number,
+	maxItems: number,
+): Promise<any[]> {
+	const all: any[] = [];
+	let pageToken: string | null = null;
+
+	while (all.length < maxItems) {
+		const url = pageToken
+			? `${baseUrl}/v2/account/activities/${activityType}?page_size=${pageSize}&page_token=${encodeURIComponent(pageToken)}`
+			: `${baseUrl}/v2/account/activities/${activityType}?page_size=${pageSize}&after=${afterDate}`;
+
+		const response = await fetch(url, { headers });
+		if (!response.ok) break;
+
+		const page: any[] = await response.json();
+		if (page.length === 0) break;
+
+		all.push(...page);
+		if (page.length < pageSize) break;
+		pageToken = page[page.length - 1].id;
+	}
+
+	return all;
 }
 
 /**
@@ -79,14 +134,15 @@ interface AccountData {
  *     every timeframe chart is always up-to-date.  We intentionally never
  *     append a synthetic new point – that previously caused a discontinuity
  *     spike when the last Alpaca bucket was stale by more than one period.
- *  3. Recompute profit_loss and profit_loss_pct from scratch using base_value
- *     and the (now-clean) equity series.  Alpaca's own profit_loss values are
- *     often stale or inconsistent; recomputing ensures the header badge, the
- *     tooltip, and the dashboard metrics cards all show the same number.
+ *  3. Subtract cumulative deposits/withdrawals (CSD/CSW/JNLC) at each timestamp
+ *     so the equity curve reflects trading performance only, not capital flows.
+ *  4. Recompute profit_loss and profit_loss_pct from the adjusted series using
+ *     the first adjusted point as base_value.
  */
 function normalizePortfolioHistory(
 	map: Record<string, PortfolioHistoryData>,
 	liveEquity: number,
+	cashFlows: CashFlow[],
 ): void {
 	for (const tf of Object.keys(map)) {
 		const h = map[tf];
@@ -109,10 +165,26 @@ function normalizePortfolioHistory(
 			eqOut[eqOut.length - 1] = liveEquity;
 		}
 
-		// ── 3. Recompute P&L consistently from base_value ─────────────────
-		// Use Alpaca's base_value when it is a valid positive number; otherwise
-		// fall back to the first non-zero equity in the series.
-		const base = h.base_value > 0 ? h.base_value : eqOut[0];
+		// ── 3. Strip cash deposits/withdrawals from each bucket ───────────
+		const periodStart = tsOut[0];
+		const firstRawEquity = eqOut[0];
+		const periodFlows = getPeriodCashFlows(cashFlows, periodStart, firstRawEquity).sort(
+			(a, b) => a.time - b.time,
+		);
+		if (periodFlows.length > 0) {
+			let flowIdx = 0;
+			let cumFlow = 0;
+			for (let i = 0; i < tsOut.length; i++) {
+				while (flowIdx < periodFlows.length && periodFlows[flowIdx].time <= tsOut[i]) {
+					cumFlow += periodFlows[flowIdx].amount;
+					flowIdx++;
+				}
+				eqOut[i] -= cumFlow;
+			}
+		}
+
+		// ── 4. Recompute P&L from flow-adjusted equity ────────────────────
+		const base = eqOut[0];
 		const plOut = eqOut.map((eq) => eq - base);
 		const plPctOut = eqOut.map((eq) => (base !== 0 ? (eq - base) / base : 0));
 
@@ -268,6 +340,35 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 			console.error(`[API] Error fetching OPEXP for account ${name}:`, e);
 		}
 
+		// Fetch non-trading cash flows (deposits/withdrawals/journals) for graph adjustment.
+		// CSD = cash deposit, CSW = cash withdrawal, JNLC = journal cash (paper funding).
+		const cashFlows: CashFlow[] = [];
+		try {
+			for (const actType of ["CSD", "CSW", "JNLC"]) {
+				const pages = await fetchPaginatedActivities(
+					baseUrl,
+					headers,
+					actType,
+					afterDate,
+					pageSize,
+					2000,
+				);
+				for (const cf of pages) {
+					const dateStr: string = cf.transaction_time ?? cf.date ?? "";
+					if (!dateStr) continue;
+					const ts = Math.floor(new Date(dateStr).getTime() / 1000);
+					const amount = parseFloat(cf.net_amount ?? "0");
+					if (!isNaN(ts) && !isNaN(amount) && amount !== 0) {
+						cashFlows.push({ time: ts, amount });
+					}
+				}
+			}
+			cashFlows.sort((a, b) => a.time - b.time);
+			console.log(`[API] ${name}: fetched ${cashFlows.length} cash flow activities`);
+		} catch (e) {
+			console.error(`[API] Error fetching cash flows for account ${name}:`, e);
+		}
+
 		const portfolioHistoryResults = await Promise.all(portfolioHistoryPromises);
 		const portfolioHistoryMap: Record<string, PortfolioHistoryData> = Object.fromEntries(
 			portfolioHistoryResults
@@ -281,7 +382,7 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 		// timeframe with this value, and recomputes P&L/P&L% consistently so
 		// all charts and metric cards are in sync.
 		const liveEquity = accountInfo ? parseFloat(accountInfo.equity) : NaN;
-		normalizePortfolioHistory(portfolioHistoryMap, liveEquity);
+		normalizePortfolioHistory(portfolioHistoryMap, liveEquity, cashFlows);
 
 		return {
 			id,
@@ -292,6 +393,7 @@ async function fetchAccountData(config: AccountConfig): Promise<AccountData | nu
 			activities: allActivities,
 			legToParentOrder,
 			orderIdToSource,
+			cashFlows,
 			buyingPower: accountInfo ? parseFloat(accountInfo.buying_power) : 0,
 			equity: accountInfo ? parseFloat(accountInfo.equity) : 0,
 		};

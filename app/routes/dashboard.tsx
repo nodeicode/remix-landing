@@ -103,6 +103,7 @@ interface AccountData {
 	activities: Activity[];
 	legToParentOrder: Record<string, string>;
 	orderIdToSource: Record<string, string>;
+	cashFlows?: { time: number; amount: number }[];
 	buyingPower?: number;
 	equity?: number;
 }
@@ -369,14 +370,16 @@ export default function Dashboard() {
 		};
 	}, [tradeHistory]);
 
-	// Calculate portfolio P&L and risk-adjusted metrics based on selected timeframe
+	// Portfolio summary uses flow-adjusted equity (trading-only, same as the chart).
+	// Raw account balance is shown in the sidebar via currentAccount.equity.
 	const portfolioMetrics = useMemo(() => {
 		const historyData = portfolioHistory[selectedTimeframe];
+		const rawLiveEquity = currentAccount?.equity ?? 0;
 
 		if (!historyData || !historyData.equity || historyData.equity.length === 0) {
 			return {
 				startingValue: 0,
-				currentValue: 0,
+				currentValue: rawLiveEquity,
 				pnl: 0,
 				pnlPercent: 0,
 				sharpeRatio: 0,
@@ -386,14 +389,11 @@ export default function Dashboard() {
 			};
 		}
 
-		// Use Alpaca's values directly. The loader already patches the last data
-		// point of every timeframe with live equity so these are always current.
 		const lastIdx = historyData.equity.length - 1;
 		const startingValue = historyData.base_value;
 		const currentValue = historyData.equity[lastIdx] ?? 0;
-		const pnl = historyData.profit_loss[lastIdx] ?? currentValue - startingValue;
-		const pnlPercent =
-			historyData.profit_loss_pct[lastIdx] ?? (startingValue !== 0 ? pnl / startingValue : 0);
+		const pnl = currentValue - startingValue;
+		const pnlPercent = startingValue !== 0 ? pnl / startingValue : 0;
 
 		// Compute period-over-period returns from valid (non-zero) equity data points
 		// so Alpaca placeholder zeros don't corrupt Sharpe/Sortino/drawdown.
@@ -486,7 +486,7 @@ export default function Dashboard() {
 			maxDrawdown,
 			calmarRatio,
 		};
-	}, [portfolioHistory, selectedTimeframe]);
+	}, [portfolioHistory, selectedTimeframe, currentAccount?.equity]);
 
 	const handleSort = (key: string) => {
 		setSortConfig((current) => {

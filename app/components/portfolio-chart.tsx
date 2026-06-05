@@ -33,16 +33,8 @@ function formatDate(timestamp: number, timeframe: string): string {
 }
 
 export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
-	if (!data || !data.timestamp || data.timestamp.length === 0) {
-		return (
-			<div className="flex items-center justify-center h-48 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-500 text-sm">
-				No data available for this timeframe
-			</div>
-		);
-	}
-
-	// eslint-disable-next-line react-hooks/rules-of-hooks
 	const chartData = useMemo(() => {
+		if (!data?.timestamp?.length) return [];
 		return data.timestamp.map((ts, i) => ({
 			date: ts,
 			equity: data.equity[i] ?? 0,
@@ -51,13 +43,21 @@ export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
 		}));
 	}, [data]);
 
-	// Use Alpaca's own profit_loss/profit_loss_pct from the last data point.
-	// The api.accounts loader already patches that last point with live equity.
-	const lastIdx = data.equity.length - 1;
-	const currentEquity = data.equity[lastIdx] ?? 0;
-	const startEquity = data.base_value;
-	const change = data.profit_loss[lastIdx] ?? currentEquity - startEquity;
-	const changePct = (data.profit_loss_pct[lastIdx] ?? 0) * 100;
+	if (chartData.length === 0) {
+		return (
+			<div className="flex items-center justify-center h-48 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-500 text-sm">
+				No data available for this timeframe
+			</div>
+		);
+	}
+
+	// chartData.length > 0 guarantees data and timestamps exist (see useMemo above).
+	const history = data!;
+	const lastIdx = history.equity.length - 1;
+	const currentEquity = history.equity[lastIdx] ?? 0;
+	const startEquity = history.base_value;
+	const change = currentEquity - startEquity;
+	const changePct = startEquity !== 0 ? (change / startEquity) * 100 : 0;
 	const isPositive = change >= 0;
 	const lineColor = isPositive ? "#34d399" : "#f87171";
 
@@ -145,7 +145,7 @@ export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
 						domain={["auto", "auto"]}
 					/>
 
-					<ReferenceLine y={data.base_value} strokeDasharray="4 4" strokeWidth={1} />
+					<ReferenceLine y={history.base_value} strokeDasharray="4 4" strokeWidth={1} />
 
 					<ChartTooltip
 						cursor={{ stroke: "#52525b", strokeWidth: 1 }}

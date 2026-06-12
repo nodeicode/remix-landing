@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import { registerServiceWorker, subscribeToNotifications } from "~/utils/service-worker";
 import {
 	Menu,
@@ -13,6 +15,7 @@ import {
 	Target,
 	Loader2,
 	Zap,
+	CalendarIcon,
 } from "lucide-react";
 import { TradesTable } from "../components/trades-table";
 import { ActivePositions } from "../components/active-positions";
@@ -27,6 +30,8 @@ import {
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { Calendar } from "../components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import {
 	Select,
 	SelectContent,
@@ -83,7 +88,72 @@ interface Activity {
 	order_status: string;
 }
 
-type Timeframe = "1D" | "1W" | "1M" | "3M" | "ALL";
+type Preset = "1D" | "1W" | "1M" | "3M" | "ALL";
+
+function getDateRangeBounds(
+	preset: Preset | null,
+	range: DateRange | undefined,
+): { start: Date; end: Date } {
+	const now = new Date();
+	if (preset) {
+		const start = new Date();
+		switch (preset) {
+			case "1D":
+				start.setDate(now.getDate() - 1);
+				break;
+			case "1W":
+				start.setDate(now.getDate() - 7);
+				break;
+			case "1M":
+				start.setMonth(now.getMonth() - 1);
+				break;
+			case "3M":
+				start.setMonth(now.getMonth() - 3);
+				break;
+			case "ALL":
+				return { start: new Date(0), end: now };
+		}
+		return { start, end: now };
+	}
+	if (range?.from) {
+		const end = range.to
+			? new Date(new Date(range.to).setHours(23, 59, 59, 999))
+			: new Date(new Date(range.from).setHours(23, 59, 59, 999));
+		return { start: range.from, end };
+	}
+	const fallback = new Date();
+	fallback.setDate(now.getDate() - 7);
+	return { start: fallback, end: now };
+}
+
+function getRangeLabel(preset: Preset | null, range: DateRange | undefined): string {
+	if (preset) return preset;
+	if (range?.from) {
+		return range.to
+			? `${format(range.from, "MMM d, yyyy")} – ${format(range.to, "MMM d, yyyy")}`
+			: format(range.from, "MMM d, yyyy");
+	}
+	return "Custom";
+}
+
+function getAnnualizationParams(
+	preset: Preset | null,
+	range: DateRange | undefined,
+): { factor: number; periodsPerYear: number } {
+	if (preset === "1D") return { factor: Math.sqrt(252), periodsPerYear: 252 };
+	if (preset === "1W") return { factor: Math.sqrt(52), periodsPerYear: 52 };
+	if (preset === "1M") return { factor: Math.sqrt(12), periodsPerYear: 12 };
+	if (preset === "3M") return { factor: Math.sqrt(4), periodsPerYear: 4 };
+	if (preset === "ALL") return { factor: Math.sqrt(252), periodsPerYear: 1 };
+
+	const { start, end } = getDateRangeBounds(null, range);
+	const days = Math.max(1, (end.getTime() - start.getTime()) / 86_400_000);
+	if (days <= 1) return { factor: Math.sqrt(252), periodsPerYear: 252 };
+	if (days <= 7) return { factor: Math.sqrt(52), periodsPerYear: 52 };
+	if (days <= 31) return { factor: Math.sqrt(12), periodsPerYear: 12 };
+	if (days <= 93) return { factor: Math.sqrt(4), periodsPerYear: 4 };
+	return { factor: Math.sqrt(365 / days), periodsPerYear: 365 / days };
+}
 
 interface AccountConfig {
 	id: string;
@@ -185,7 +255,12 @@ export default function Dashboard() {
 
 	const [activeTab, setActiveTab] = useState<"portfolio" | "signals">("signals");
 	const [filteredSymbol, setFilteredSymbol] = useState<string>("all");
-	const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>("1W");
+	const [preset, setPreset] = useState<Preset | null>("1W");
+	const [customRange, setCustomRange] = useState<DateRange | undefined>();
+	const [calOpen, setCalOpen] = useState(false);
+	const [customHistory, setCustomHistory] = useState<PortfolioHistoryData | null>(null);
+	const [customHistoryLoading, setCustomHistoryLoading] = useState(false);
+	const [customHistoryError, setCustomHistoryError] = useState<string | null>(null);
 	const [sortConfig, setSortConfig] = useState<{
 		key: string;
 		direction: "asc" | "desc";
@@ -236,6 +311,56 @@ export default function Dashboard() {
 	useEffect(() => {
 		registerServiceWorker();
 	}, []);
+
+	const rangeLabel = getRangeLabel(preset, customRange);
+	const dateBounds = useMemo(
+		() => getDateRangeBounds(preset, customRange),
+		[preset, customRange],
+	);
+
+	const activeHistory = preset ? portfolioHistory[preset] : customHistory;
+
+	// Fetch portfolio history for custom date ranges
+	useEffect(() => {
+		if (preset || !customRange?.from || !customRange?.to || !selectedAccountId) {
+			setCustomHistory(null);
+			setCustomHistoryError(null);
+			return;
+		}
+
+		const controller = new AbortController();
+		const { start, end } = getDateRangeBounds(null, customRange);
+
+		setCustomHistoryLoading(true);
+		setCustomHistoryError(null);
+
+		fetch(
+			`/api/portfolio-history?accountId=${encodeURIComponent(selectedAccountId)}&startMs=${start.getTime()}&endMs=${end.getTime()}`,
+			{ signal: controller.signal },
+		)
+			.then(async (res) => {
+				if (!res.ok) {
+					const body = (await res.json().catch(() => ({}))) as { error?: string };
+					throw new Error(body.error ?? `HTTP ${res.status}`);
+				}
+				return res.json() as Promise<{ history: PortfolioHistoryData }>;
+			})
+			.then((data) => {
+				setCustomHistory(data.history);
+			})
+			.catch((err) => {
+				if (err instanceof DOMException && err.name === "AbortError") return;
+				setCustomHistory(null);
+				setCustomHistoryError(
+					err instanceof Error ? err.message : "Failed to load portfolio history",
+				);
+			})
+			.finally(() => {
+				if (!controller.signal.aborted) setCustomHistoryLoading(false);
+			});
+
+		return () => controller.abort();
+	}, [preset, customRange, selectedAccountId]);
 
 	// Helper function to extract underlying ticker from option symbols
 	// Option format: AAPL250117C00150000 -> AAPL
@@ -304,31 +429,14 @@ export default function Dashboard() {
 			filtered = filtered.filter((trade) => trade.underlyingTicker === filteredSymbol);
 		}
 
-		// Filter by timeframe
-		if (selectedTimeframe !== "ALL") {
-			const now = new Date();
-			const cutoffDate = new Date();
-
-			switch (selectedTimeframe) {
-				case "1D":
-					cutoffDate.setDate(now.getDate() - 1);
-					break;
-				case "1W":
-					cutoffDate.setDate(now.getDate() - 7);
-					break;
-				case "1M":
-					cutoffDate.setMonth(now.getMonth() - 1);
-					break;
-				case "3M":
-					cutoffDate.setMonth(now.getMonth() - 3);
-					break;
-			}
-
-			filtered = filtered.filter((trade) => trade.date >= cutoffDate);
+		// Filter by date range
+		if (preset !== "ALL") {
+			const { start, end } = dateBounds;
+			filtered = filtered.filter((trade) => trade.date >= start && trade.date <= end);
 		}
 
 		return filtered;
-	}, [tradeHistory, filteredSymbol, selectedTimeframe]); // Sort trades
+	}, [tradeHistory, filteredSymbol, preset, dateBounds]);
 	const sortedTrades = useMemo(() => {
 		const sorted = [...filteredTrades];
 		if (sortConfig) {
@@ -373,7 +481,7 @@ export default function Dashboard() {
 	// Portfolio summary uses flow-adjusted equity (trading-only, same as the chart).
 	// Raw account balance is shown in the sidebar via currentAccount.equity.
 	const portfolioMetrics = useMemo(() => {
-		const historyData = portfolioHistory[selectedTimeframe];
+		const historyData = activeHistory;
 		const rawLiveEquity = currentAccount?.equity ?? 0;
 
 		if (!historyData || !historyData.equity || historyData.equity.length === 0) {
@@ -395,8 +503,6 @@ export default function Dashboard() {
 		const pnl = currentValue - startingValue;
 		const pnlPercent = startingValue !== 0 ? pnl / startingValue : 0;
 
-		// Compute period-over-period returns from valid (non-zero) equity data points
-		// so Alpaca placeholder zeros don't corrupt Sharpe/Sortino/drawdown.
 		const validEquities = historyData.equity.filter((e) => e != null && e > 0);
 		const returns: number[] = [];
 		for (let i = 1; i < validEquities.length; i++) {
@@ -417,29 +523,18 @@ export default function Dashboard() {
 			};
 		}
 
-		// Calculate mean return
 		const meanReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
 
-		// Calculate standard deviation
 		const variance =
 			returns.reduce((sum, r) => sum + Math.pow(r - meanReturn, 2), 0) / returns.length;
 		const stdDev = Math.sqrt(variance);
 
-		// Sharpe Ratio (assuming 0% risk-free rate for simplicity)
-		// Annualized: multiply by sqrt(252) for daily, sqrt(52) for weekly, sqrt(12) for monthly
-		const annualizationFactor =
-			selectedTimeframe === "1D"
-				? Math.sqrt(252)
-				: selectedTimeframe === "1W"
-					? Math.sqrt(52)
-					: selectedTimeframe === "1M"
-						? Math.sqrt(12)
-						: selectedTimeframe === "3M"
-							? Math.sqrt(4)
-							: Math.sqrt(252); // Daily for ALL
+		const { factor: annualizationFactor, periodsPerYear } = getAnnualizationParams(
+			preset,
+			customRange,
+		);
 		const sharpeRatio = stdDev !== 0 ? (meanReturn / stdDev) * annualizationFactor : 0;
 
-		// Sortino Ratio (only downside deviation)
 		const downsideReturns = returns.filter((r) => r < 0);
 		const downsideVariance =
 			downsideReturns.length > 0
@@ -449,7 +544,6 @@ export default function Dashboard() {
 		const sortinoRatio =
 			downsideStdDev !== 0 ? (meanReturn / downsideStdDev) * annualizationFactor : 0;
 
-		// Maximum Drawdown (computed on valid equities only)
 		let peak = validEquities[0] ?? 0;
 		let maxDrawdown = 0;
 		for (const equity of validEquities) {
@@ -462,18 +556,7 @@ export default function Dashboard() {
 			}
 		}
 
-		// Calmar Ratio (annualized return / max drawdown)
-		const annualizedReturn =
-			pnlPercent *
-			(selectedTimeframe === "1D"
-				? 252
-				: selectedTimeframe === "1W"
-					? 52
-					: selectedTimeframe === "1M"
-						? 12
-						: selectedTimeframe === "3M"
-							? 4
-							: 1); // No annualization for ALL
+		const annualizedReturn = pnlPercent * periodsPerYear;
 		const calmarRatio = maxDrawdown !== 0 ? annualizedReturn / maxDrawdown : 0;
 
 		return {
@@ -486,7 +569,7 @@ export default function Dashboard() {
 			maxDrawdown,
 			calmarRatio,
 		};
-	}, [portfolioHistory, selectedTimeframe, currentAccount?.equity]);
+	}, [activeHistory, preset, customRange, currentAccount?.equity]);
 
 	const handleSort = (key: string) => {
 		setSortConfig((current) => {
@@ -716,19 +799,22 @@ export default function Dashboard() {
 					{activeTab === "portfolio" && (
 						<div className="px-3 sm:px-5 py-2.5">
 							<div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
-								{/* Timeframe */}
-								<div className="flex items-center gap-2 flex-1 min-w-0">
+								{/* Date range */}
+								<div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
 									<span className="text-xs text-zinc-400 font-medium whitespace-nowrap">
-										Timeframe
+										Range
 									</span>
 									<div className="flex gap-1 flex-wrap">
-										{(["1D", "1W", "1M", "3M", "ALL"] as Timeframe[]).map((tf) => (
+										{(["1D", "1W", "1M", "3M", "ALL"] as Preset[]).map((tf) => (
 											<button
 												key={tf}
-												onClick={() => setSelectedTimeframe(tf)}
+												onClick={() => {
+													setPreset(tf);
+													setCustomRange(undefined);
+												}}
 												className={cn(
 													"px-2.5 py-1 text-xs rounded-md font-medium transition-colors",
-													selectedTimeframe === tf
+													preset === tf
 														? "bg-blue-600 text-white"
 														: "bg-zinc-800 text-zinc-300 hover:bg-zinc-700",
 												)}
@@ -737,6 +823,34 @@ export default function Dashboard() {
 											</button>
 										))}
 									</div>
+									<Popover open={calOpen} onOpenChange={setCalOpen}>
+										<PopoverTrigger asChild>
+											<Button
+												variant="outline"
+												size="sm"
+												className={cn(
+													"h-7 text-xs gap-1.5",
+													!preset && "ring-1 ring-blue-500 border-blue-500",
+												)}
+											>
+												<CalendarIcon className="w-3 h-3" />
+												{preset ? "Custom" : rangeLabel}
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent className="w-auto p-0" align="start">
+											<Calendar
+												mode="range"
+												selected={customRange}
+												onSelect={(r) => {
+													setCustomRange(r);
+													setPreset(null);
+													if (r?.from && r?.to) setCalOpen(false);
+												}}
+												toDate={new Date()}
+												numberOfMonths={2}
+											/>
+										</PopoverContent>
+									</Popover>
 								</div>
 								{/* Ticker Filter */}
 								<div className="flex items-center gap-2">
@@ -772,20 +886,36 @@ export default function Dashboard() {
 				{activeTab === "portfolio" && (
 					<div className="max-w-6xl mx-auto w-full p-3 sm:p-5 pb-12 space-y-4 sm:space-y-6">
 						{/* ── Portfolio Chart ── */}
-						{portfolioHistory[selectedTimeframe] && (
-							<div className="space-y-3">
-								<h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
-									Portfolio Equity ·{" "}
-									<span className="text-zinc-600 font-normal normal-case">
-										{selectedTimeframe}
-									</span>
-								</h2>
+						<div className="space-y-3">
+							<h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
+								Portfolio Equity ·{" "}
+								<span className="text-zinc-600 font-normal normal-case">{rangeLabel}</span>
+							</h2>
+							{customHistoryError && (
+								<div className="rounded-md border border-red-900/50 bg-red-950/20 px-4 py-3 text-xs text-red-400">
+									{customHistoryError}
+								</div>
+							)}
+							{customHistoryLoading ? (
+								<div className="flex items-center justify-center h-48 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-500 text-sm gap-2">
+									<Loader2 className="w-4 h-4 animate-spin" />
+									Loading portfolio history…
+								</div>
+							) : activeHistory ? (
 								<PortfolioChart
-									data={portfolioHistory[selectedTimeframe]}
-									timeframe={selectedTimeframe}
+									data={activeHistory}
+									rangeDays={
+										(dateBounds.end.getTime() - dateBounds.start.getTime()) / 86_400_000
+									}
 								/>
-							</div>
-						)}
+							) : (
+								<div className="flex items-center justify-center h-48 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-500 text-sm">
+									{!preset && customRange?.from && !customRange?.to
+										? "Select an end date to load the chart"
+										: "No data available for this range"}
+								</div>
+							)}
+						</div>
 
 						{/* ── Portfolio Summary ── */}
 						<div className="space-y-3">
@@ -797,7 +927,7 @@ export default function Dashboard() {
 									<CardContent className="p-4">
 										<p className="text-xs text-zinc-500 mb-1">
 											Starting Value{" "}
-											<span className="text-zinc-600">({selectedTimeframe})</span>
+											<span className="text-zinc-600">({rangeLabel})</span>
 										</p>
 										<p className="text-xl font-bold text-zinc-50 tabular-nums">
 											$
@@ -823,7 +953,7 @@ export default function Dashboard() {
 								<Card>
 									<CardContent className="p-4">
 										<p className="text-xs text-zinc-500 mb-1">
-											P&amp;L <span className="text-zinc-600">({selectedTimeframe})</span>
+											P&amp;L <span className="text-zinc-600">({rangeLabel})</span>
 										</p>
 										<p
 											className={cn(
@@ -842,7 +972,7 @@ export default function Dashboard() {
 								<Card>
 									<CardContent className="p-4">
 										<p className="text-xs text-zinc-500 mb-1">
-											P&amp;L % <span className="text-zinc-600">({selectedTimeframe})</span>
+											P&amp;L % <span className="text-zinc-600">({rangeLabel})</span>
 										</p>
 										<p
 											className={cn(
@@ -1075,7 +1205,7 @@ export default function Dashboard() {
 								<h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
 									Trade History
 									<span className="normal-case font-normal text-zinc-600 ml-2">
-										({selectedTimeframe})
+										({rangeLabel})
 									</span>
 								</h2>
 								<span className="text-xs text-zinc-600">

@@ -18,21 +18,21 @@ interface PortfolioChartProps {
 		base_value: number;
 		timeframe: string;
 	};
-	timeframe: string;
+	rangeDays: number;
 }
 
-function formatDate(timestamp: number, timeframe: string): string {
+function formatDate(timestamp: number, rangeDays: number): string {
 	const date = new Date(timestamp * 1000);
-	if (timeframe === "1D") {
+	if (rangeDays <= 1) {
 		return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-	} else if (timeframe === "1W") {
-		return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-	} else {
-		return date.toLocaleDateString([], { month: "short", day: "numeric" });
 	}
+	if (rangeDays <= 7) {
+		return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+	}
+	return date.toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" });
 }
 
-export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
+export function PortfolioChart({ data, rangeDays }: PortfolioChartProps) {
 	const chartData = useMemo(() => {
 		if (!data?.timestamp?.length) return [];
 		return data.timestamp.map((ts, i) => ({
@@ -65,7 +65,7 @@ export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
 		equity: { label: "Equity", color: lineColor },
 	};
 
-	const tickCount = timeframe === "1D" ? 6 : timeframe === "1W" ? 7 : 5;
+	const tickCount = rangeDays <= 1 ? 6 : rangeDays <= 7 ? 7 : 5;
 	const step = Math.max(1, Math.floor(chartData.length / tickCount));
 	const tickTimestamps = chartData.filter((_, i) => i % step === 0).map((d) => d.date);
 
@@ -129,7 +129,7 @@ export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
 						axisLine={false}
 						tickMargin={8}
 						ticks={tickTimestamps}
-						tickFormatter={(v) => formatDate(v, timeframe)}
+						tickFormatter={(v) => formatDate(v, rangeDays)}
 						tick={{ fill: "#71717a", fontSize: 11 }}
 					/>
 
@@ -153,7 +153,7 @@ export function PortfolioChart({ data, timeframe }: PortfolioChartProps) {
 							<ChartTooltipContent
 								labelFormatter={(_label, payload) => {
 									if (payload?.[0]?.payload?.date) {
-										return formatDate(payload[0].payload.date as number, timeframe);
+										return formatDate(payload[0].payload.date as number, rangeDays);
 									}
 									return "";
 								}}

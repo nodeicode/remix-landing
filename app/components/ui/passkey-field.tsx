@@ -8,7 +8,16 @@ export interface PasskeyFieldProps extends React.InputHTMLAttributes<HTMLInputEl
 }
 
 const PasskeyField = React.forwardRef<HTMLInputElement, PasskeyFieldProps>(
-	({ className, label = "Device passkey", hint = "Local device unlock", type = "password", ...props }, ref) => {
+	(
+		{
+			className,
+			label = "Device passkey",
+			hint = "Local device unlock",
+			type = "password",
+			...props
+		},
+		ref,
+	) => {
 		return (
 			<div className="rounded-[1.7rem] border border-zinc-700/80 bg-linear-to-br from-zinc-900 to-zinc-950 p-px shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
 				<div className="rounded-[1.65rem] bg-zinc-950/90 px-4 py-4 sm:px-5 sm:py-5">
@@ -29,7 +38,8 @@ const PasskeyField = React.forwardRef<HTMLInputElement, PasskeyFieldProps>(
 						{...props}
 					/>
 					<p className="mt-3 text-[11px] leading-5 text-zinc-500">
-						This stays on this device only. If it is saved in your browser, the dashboard opens automatically.
+						This stays on this device only. If it is saved in your browser, the dashboard opens
+						automatically.
 					</p>
 				</div>
 			</div>

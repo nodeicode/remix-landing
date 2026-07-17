@@ -219,46 +219,49 @@ export default function Dashboard() {
 		setIsUnlocking(false);
 	};
 
-	const fetchAccounts = useCallback(async (isBackground = false) => {
-		if (authState !== "unlocked") return;
-		if (!isBackground) {
-			setError(null);
-		}
-		try {
-			const response = await fetch("/api/accounts");
-			if (!response.ok) {
-				throw new Error(`Failed to fetch accounts (${response.status})`);
+	const fetchAccounts = useCallback(
+		async (isBackground = false) => {
+			if (authState !== "unlocked") return;
+			if (!isBackground) {
+				setError(null);
 			}
-			const data = await response.json();
-			if (!data.accounts) {
-				throw new Error(data.error ?? "No accounts in response");
+			try {
+				const response = await fetch("/api/accounts");
+				if (!response.ok) {
+					throw new Error(`Failed to fetch accounts (${response.status})`);
+				}
+				const data = await response.json();
+				if (!data.accounts) {
+					throw new Error(data.error ?? "No accounts in response");
+				}
+				setAccounts(data.accounts);
+				setSelectedAccountId((prevSelectedId) => {
+					if (
+						prevSelectedId &&
+						data.accounts.some((account: AccountData) => account.id === prevSelectedId)
+					) {
+						return prevSelectedId;
+					}
+					return getDefaultAccountId(data.accounts);
+				});
+				setError(null);
+				setLastUpdated(new Date());
+			} catch (err) {
+				console.error("Error fetching accounts:", err);
+				// On background polls, preserve stale data — only show the error
+				// screen when we have nothing to display yet.
+				setAccounts((prev) => {
+					if (prev.length === 0) {
+						setError("Failed to load account data");
+					}
+					return prev;
+				});
+			} finally {
+				setIsLoading(false);
 			}
-			setAccounts(data.accounts);
-			setSelectedAccountId((prevSelectedId) => {
-				if (
-					prevSelectedId &&
-					data.accounts.some((account: AccountData) => account.id === prevSelectedId)
-				) {
-					return prevSelectedId;
-				}
-				return getDefaultAccountId(data.accounts);
-			});
-			setError(null);
-			setLastUpdated(new Date());
-		} catch (err) {
-			console.error("Error fetching accounts:", err);
-			// On background polls, preserve stale data — only show the error
-			// screen when we have nothing to display yet.
-			setAccounts((prev) => {
-				if (prev.length === 0) {
-					setError("Failed to load account data");
-				}
-				return prev;
-			});
-		} finally {
-			setIsLoading(false);
-		}
-	}, [authState]);
+		},
+		[authState],
+	);
 
 	useEffect(() => {
 		if (authState !== "unlocked") return;
@@ -1016,8 +1019,7 @@ export default function Dashboard() {
 								<Card>
 									<CardContent className="p-4">
 										<p className="text-xs text-zinc-500 mb-1">
-											Starting Value{" "}
-											<span className="text-zinc-600">({rangeLabel})</span>
+											Starting Value <span className="text-zinc-600">({rangeLabel})</span>
 										</p>
 										<p className="text-xl font-bold text-zinc-50 tabular-nums">
 											$

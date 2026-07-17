@@ -30,6 +30,7 @@ import {
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { PasskeyField } from "../components/ui/passkey-field";
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import {
@@ -43,6 +44,7 @@ import { cn } from "../lib/utils";
 import { PortfolioChart } from "../components/portfolio-chart";
 import { SignalsTimeline } from "../components/signals-timeline";
 import { ConfigCard } from "../components/config-card";
+import { isDeviceUnlocked, unlockDevice } from "../utils/device-auth";
 
 // Types for Alpaca API responses
 interface PortfolioHistoryData {
@@ -188,6 +190,10 @@ export default function Dashboard() {
 	const [error, setError] = useState<string | null>(null);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 	const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+	const [authState, setAuthState] = useState<"checking" | "locked" | "unlocked">("checking");
+	const [deviceKey, setDeviceKey] = useState("");
+	const [deviceError, setDeviceError] = useState<string | null>(null);
+	const [isUnlocking, setIsUnlocking] = useState(false);
 
 	const getDefaultAccountId = (accountList: AccountData[]): string => {
 		if (accountList.length === 0) return "";
@@ -195,7 +201,26 @@ export default function Dashboard() {
 		return preferredDefault?.id ?? accountList[0].id;
 	};
 
+	useEffect(() => {
+		setAuthState(isDeviceUnlocked() ? "unlocked" : "locked");
+	}, []);
+
+	const handleUnlock = async (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		setIsUnlocking(true);
+		setDeviceError(null);
+		const unlocked = unlockDevice(deviceKey.trim());
+		if (unlocked) {
+			setAuthState("unlocked");
+			setDeviceKey("");
+		} else {
+			setDeviceError("That device key did not match.");
+		}
+		setIsUnlocking(false);
+	};
+
 	const fetchAccounts = useCallback(async (isBackground = false) => {
+		if (authState !== "unlocked") return;
 		if (!isBackground) {
 			setError(null);
 		}
@@ -233,13 +258,14 @@ export default function Dashboard() {
 		} finally {
 			setIsLoading(false);
 		}
-	}, []);
+	}, [authState]);
 
 	useEffect(() => {
+		if (authState !== "unlocked") return;
 		fetchAccounts(false);
 		const interval = setInterval(() => fetchAccounts(true), 12000);
 		return () => clearInterval(interval);
-	}, [fetchAccounts]);
+	}, [authState, fetchAccounts]);
 
 	const currentAccount = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
 
@@ -441,11 +467,12 @@ export default function Dashboard() {
 		const sorted = [...filteredTrades];
 		if (sortConfig) {
 			sorted.sort((a, b) => {
-				const aVal = a[sortConfig.key as keyof typeof a];
-				const bVal = b[sortConfig.key as keyof typeof b];
+				const aVal = String(a[sortConfig.key as keyof typeof a] ?? "");
+				const bVal = String(b[sortConfig.key as keyof typeof b] ?? "");
+				const comparison = aVal.localeCompare(bVal);
 
-				if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-				if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+				if (comparison < 0) return sortConfig.direction === "asc" ? -1 : 1;
+				if (comparison > 0) return sortConfig.direction === "asc" ? 1 : -1;
 				return 0;
 			});
 		}
@@ -582,6 +609,69 @@ export default function Dashboard() {
 			return { key, direction: "desc" };
 		});
 	};
+
+	if (authState === "checking") {
+		return (
+			<div className="flex items-center justify-center min-h-screen bg-zinc-950 px-4">
+				<div className="text-center space-y-4">
+					<div className="relative mx-auto w-12 h-12">
+						<div className="absolute inset-0 rounded-full border-2 border-zinc-800" />
+						<div className="absolute inset-0 rounded-full border-2 border-t-blue-500 animate-spin" />
+					</div>
+					<p className="text-zinc-400 text-sm">Checking device access…</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (authState === "locked") {
+		return (
+			<div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center px-4 py-10">
+				<Card className="w-full max-w-md overflow-hidden border-zinc-800 bg-zinc-900/90 shadow-2xl shadow-black/30 backdrop-blur-sm">
+					<CardHeader className="space-y-4 pb-4">
+						<div className="flex items-center gap-3">
+							<div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10 text-blue-300">
+								<Shield className="h-5 w-5" />
+							</div>
+							<div className="min-w-0">
+								<p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-500">
+									Device lock
+								</p>
+								<CardTitle className="mt-1 text-2xl font-semibold tracking-tight text-zinc-50">
+									Unlock dashboard
+								</CardTitle>
+							</div>
+						</div>
+						<CardDescription className="text-sm leading-6 text-zinc-400">
+							Enter the device passkey stored on this browser to continue.
+						</CardDescription>
+					</CardHeader>
+
+					<CardContent className="space-y-4 pt-0">
+						<form onSubmit={handleUnlock} className="space-y-4">
+							<PasskeyField
+								id="device-key"
+								value={deviceKey}
+								onChange={(event) => setDeviceKey(event.target.value)}
+								placeholder="Type the device passkey"
+								autoComplete="one-time-code"
+							/>
+
+							{deviceError && (
+								<div className="rounded-xl border border-red-900/50 bg-red-950/20 px-4 py-3 text-sm leading-6 text-red-300">
+									{deviceError}
+								</div>
+							)}
+
+							<Button type="submit" className="w-full" disabled={isUnlocking}>
+								{isUnlocking ? "Unlocking…" : "Unlock device"}
+							</Button>
+						</form>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
 
 	if (isLoading) {
 		return (

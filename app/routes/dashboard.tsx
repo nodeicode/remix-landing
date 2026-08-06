@@ -42,7 +42,7 @@ import {
 } from "../components/ui/select";
 import { cn } from "../lib/utils";
 import { PortfolioChart } from "../components/portfolio-chart";
-import { SignalsTimeline } from "../components/signals-timeline";
+import { MonitorDashboard } from "../components/monitor-dashboard";
 import { ConfigCard } from "../components/config-card";
 import { isDeviceUnlocked, unlockDevice } from "../utils/device-auth";
 
@@ -752,7 +752,7 @@ export default function Dashboard() {
 							)}
 						>
 							<Zap className="w-3.5 h-3.5" />
-							Logs
+							Monitor
 						</button>
 					</div>
 				</div>
@@ -880,7 +880,7 @@ export default function Dashboard() {
 							{isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
 						</button>
 						<h1 className="text-sm font-bold text-zinc-50 truncate">
-							{activeTab === "signals" ? "Logs" : "Portfolio"}
+							{activeTab === "signals" ? "Monitor" : "Portfolio"}
 						</h1>
 						{lastUpdated && (
 							<span className="ml-auto text-[10px] text-zinc-500 tabular-nums whitespace-nowrap">
@@ -968,11 +968,11 @@ export default function Dashboard() {
 						</div>
 					)}
 				</div>
-				{/* ── Logs tab ── */}
+				{/* ── Monitor tab ── */}
 				{activeTab === "signals" && (
 					<div className="max-w-6xl mx-auto w-full p-3 sm:p-5 pb-12 space-y-4 sm:space-y-6">
 						<ConfigCard />
-						<SignalsTimeline />
+						<MonitorDashboard />
 					</div>
 				)}
 				{/* ── Portfolio tab ── */}

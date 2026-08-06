@@ -12,6 +12,7 @@ interface LogLine {
 	msg: string;
 	stream: string;
 	env: "prod" | "staging";
+	group?: "trader" | "monitor";
 }
 
 interface Meta {
@@ -32,7 +33,19 @@ const PRESETS: { key: Preset; label: string; days: number }[] = [
 
 function getLevel(msg: string): string {
 	const m = /- (DEBUG|INFO|WARNING|ERROR|CRITICAL) -/.exec(msg);
-	return m ? m[1] : "INFO";
+	if (m) return m[1];
+	// Monitor sidecar emits compact JSON lines with a "kind" field
+	if (msg.startsWith("{")) {
+		try {
+			const parsed = JSON.parse(msg) as { kind?: unknown };
+			if (typeof parsed.kind === "string" && parsed.kind.length > 0) {
+				return parsed.kind;
+			}
+		} catch {
+			/* not JSON */
+		}
+	}
+	return "INFO";
 }
 
 function levelStyles(level: string) {
@@ -53,8 +66,17 @@ function levelStyles(level: string) {
 				msg: "text-yellow-200",
 			};
 		case "DEBUG":
+		case "heartbeat":
 			return { accent: "bg-zinc-700", badge: "text-zinc-600", row: "", msg: "text-zinc-500" };
-		default: // INFO
+		case "shadow_result":
+		case "signal_evaluated":
+			return {
+				accent: "bg-cyan-500",
+				badge: "text-cyan-400",
+				row: "bg-cyan-950/[0.06]",
+				msg: "text-zinc-300",
+			};
+		default: // INFO + other monitor kinds
 			return { accent: "bg-zinc-600", badge: "text-zinc-400", row: "", msg: "text-zinc-300" };
 	}
 }
@@ -102,7 +124,15 @@ export function LogViewer() {
 
 		if (preset) {
 			const days = PRESETS.find((p) => p.key === preset)!.days;
-			startMs = now - days * 86_400_000;
+			if (preset === "1d") {
+				// Calendar day so far (local midnight → now), not a rolling 24h window
+				// that starts mid-yesterday and can miss "today" under oldest-first paging.
+				const start = new Date();
+				start.setHours(0, 0, 0, 0);
+				startMs = start.getTime();
+			} else {
+				startMs = now - days * 86_400_000;
+			}
 		} else if (range?.from) {
 			startMs = range.from.getTime();
 			endMs = range.to
@@ -324,8 +354,11 @@ export function LogViewer() {
 					<span className="px-3 py-2 w-22.5 text-[10px] text-zinc-600 uppercase tracking-widest">
 						Time
 					</span>
-					<span className="px-3 py-2 w-20 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
+					<span className="px-3 py-2 w-32 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
 						Level
+					</span>
+					<span className="px-3 py-2 w-16 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
+						Src
 					</span>
 					<span className="px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
 						Message
@@ -379,11 +412,21 @@ export function LogViewer() {
 										{/* Level */}
 										<span
 											className={cn(
-												"shrink-0 flex items-center px-3 w-20 text-[10px] font-semibold uppercase tracking-wider border-r border-zinc-800/40",
+												"shrink-0 flex items-center px-3 w-32 text-[10px] font-semibold uppercase tracking-wider border-r border-zinc-800/40",
 												styles.badge,
 											)}
 										>
 											{level}
+										</span>
+
+										{/* Source group */}
+										<span
+											className={cn(
+												"shrink-0 flex items-center px-2 w-16 text-[10px] font-medium tracking-wide border-r border-zinc-800/40",
+												line.group === "monitor" ? "text-cyan-500/80" : "text-zinc-600",
+											)}
+										>
+											{line.group === "monitor" ? "mon" : "trd"}
 										</span>
 
 										{/* Message */}

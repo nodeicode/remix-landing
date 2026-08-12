@@ -2,12 +2,14 @@ import { CHUNK_MS, fetchLogsParallel } from "~/utils/cloudwatch.server";
 import {
 	buildInsightsFromEvents,
 	dedupeEvaluations,
+	dedupeManageEvaluations,
 	parseMonitorJsonLine,
 	parseTraderAlertLine,
 	type DriftAlert,
 	type HeartbeatEvent,
 	type MonitorEnv,
 	type MonitorInsights,
+	type ManageEvalEvent,
 	type SignalEvalEvent,
 } from "~/utils/monitor-aggregate";
 
@@ -16,6 +18,10 @@ export type {
 	MonitorInsights,
 	HeartbeatEvent,
 	SignalEvalEvent,
+	ManageEvalEvent,
+	ManageExitClass,
+	ManageSummary,
+	ManageStrategyInsights,
 	DriftAlert,
 	StageStats,
 	StrategyInsights,
@@ -98,6 +104,29 @@ function enrichAlertsFromEvals(
 	return out;
 }
 
+function enrichManageAlerts(
+	alerts: DriftAlert[],
+	evaluations: ManageEvalEvent[],
+): DriftAlert[] {
+	const out = alerts.slice();
+	const driftMsgs = out.filter((a) => a.type === "manage_exit_drift").map((a) => a.msg);
+	const failedMsgs = out.filter((a) => a.type === "shadow_manage_failed").map((a) => a.msg);
+	for (const ev of evaluations) {
+		const identity = `strategy=${ev.strategy_name} ticker=${ev.ticker} entry=${ev.entry_time}`;
+		if (ev.drift && !driftMsgs.some((msg) => msg.includes(identity))) {
+			const msg = `manage_exit_drift ${identity} live=${ev.live_exit}/${ev.exit_bar ?? ""} shadow=${ev.shadow_exit}/${ev.shadow_exit_bar ?? ""}`;
+			out.push({ ts: ev.ts, type: "manage_exit_drift", msg });
+			driftMsgs.push(msg);
+		}
+		if (ev.shadow_failed && !failedMsgs.some((msg) => msg.includes(identity))) {
+			const msg = `shadow_manage_failed ${identity} error=${ev.shadow_error ?? ""}`;
+			out.push({ ts: ev.ts, type: "shadow_manage_failed", msg });
+			failedMsgs.push(msg);
+		}
+	}
+	return out;
+}
+
 /**
  * Fetch + aggregate monitor insights.
  *
@@ -140,12 +169,17 @@ export async function fetchMonitorInsights({
 
 	const heartbeats: HeartbeatEvent[] = [];
 	const rawEvals: SignalEvalEvent[] = [];
+	const rawManageEvals: ManageEvalEvent[] = [];
 
 	for (const line of monitorRes.lines) {
 		const ev = parseMonitorJsonLine(line.ts, line.msg);
 		if (!ev) continue;
 		if (ev.kind === "heartbeat") heartbeats.push(ev);
-		else rawEvals.push(ev);
+		else if (ev.kind === "manage_evaluated" || ev.kind === "shadow_manage_result") {
+			rawManageEvals.push(ev);
+		} else if (ev.kind === "signal_evaluated" || ev.kind === "shadow_result") {
+			rawEvals.push(ev);
+		}
 	}
 
 	const alerts: DriftAlert[] = [];
@@ -155,7 +189,11 @@ export async function fetchMonitorInsights({
 	}
 
 	const evaluations = dedupeEvaluations(rawEvals);
-	const enrichedAlerts = enrichAlertsFromEvals(alerts, evaluations);
+	const manageEvaluations = dedupeManageEvaluations(rawManageEvals);
+	const enrichedAlerts = enrichManageAlerts(
+		enrichAlertsFromEvals(alerts, evaluations),
+		manageEvaluations,
+	);
 
 	const nextBeforeMs = rangeStart > startMs ? rangeStart : null;
 
@@ -167,6 +205,7 @@ export async function fetchMonitorInsights({
 		truncated: monitorRes.truncated || traderRes.truncated,
 		heartbeats,
 		evaluations,
+		manageEvaluations,
 		alerts: enrichedAlerts,
 		nextBeforeMs,
 	});

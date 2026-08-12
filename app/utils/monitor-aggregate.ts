@@ -128,6 +128,37 @@ export interface SignalEvalEvent {
 	spans: Partial<Record<LatencyStage, number>>;
 }
 
+/** Exact exit classes emitted by quant.core.monitor_utils. */
+export type ManageExitClass =
+	| "hold"
+	| "proximity"
+	| "max_hold"
+	| "strategy_manage";
+
+/** Live manage observation paired with its sidecar research-reference result. */
+export interface ManageEvalEvent {
+	kind: "manage_evaluated" | "shadow_manage_result";
+	ts: number;
+	strategy_name: string;
+	client_name: string;
+	ticker: string;
+	bar_ts: string;
+	end_dt: string;
+	interval: string;
+	manage_interval: string;
+	entry_time: string;
+	live_exit: ManageExitClass | null;
+	exit_bar: string | null;
+	shadow_exit: ManageExitClass | null;
+	shadow_exit_bar: string | null;
+	shadow_exit_idx: number | null;
+	shadow_manage_bar_ts: string | null;
+	shadow_manage_ns: number | null;
+	shadow_failed: boolean;
+	shadow_error: string | null;
+	drift: boolean;
+}
+
 export interface DriftAlert {
 	ts: number;
 	type:
@@ -138,6 +169,8 @@ export interface DriftAlert {
 		| "live_bar_missing"
 		| "shadow_bar_missing"
 		| "shadow_failed"
+		| "manage_exit_drift"
+		| "shadow_manage_failed"
 		| "bar_staleness_breach";
 	msg: string;
 }
@@ -234,6 +267,21 @@ export interface LatencyPoint {
 	shadow_reason: string;
 }
 
+export interface ManageSummary {
+	evalCount: number;
+	shadowAttemptCount: number;
+	shadowCount: number;
+	driftCount: number;
+	shadowFailedCount: number;
+	matchRate: number | null;
+}
+
+export interface ManageStrategyInsights extends ManageSummary {
+	strategy_name: string;
+	client_name: string;
+	tickers: string[];
+}
+
 export interface MonitorInsights {
 	env: MonitorEnv;
 	startMs: number;
@@ -265,6 +313,12 @@ export interface MonitorInsights {
 	sidecarStats: StageStats[];
 	freshnessStats: StageStats[];
 	strategies: StrategyInsights[];
+	manageSummary: ManageSummary;
+	manageStrategies: ManageStrategyInsights[];
+	/** Newest-first, capped detail rows for the managed-exit table. */
+	manageEvaluations: ManageEvalEvent[];
+	/** Full deduplicated range for accurate progressive-range aggregation. */
+	manageSeries: ManageEvalEvent[];
 	latencySeries: LatencyPoint[];
 	/** Time-bucketed outcome stack (from full eval set) */
 	outcomeSeries: OutcomeBucket[];
@@ -518,6 +572,106 @@ export function dedupeEvaluations(events: SignalEvalEvent[]): SignalEvalEvent[] 
 	return Array.from(map.values()).sort((a, b) => a.ts - b.ts);
 }
 
+/** Mirrors Python's compare_manage_exits: class and decision bar must match. */
+export function computeManageDrift(ev: {
+	live_exit: ManageExitClass | null;
+	exit_bar: string | null;
+	shadow_exit: ManageExitClass | null;
+	shadow_exit_bar: string | null;
+	shadow_failed?: boolean;
+}): boolean {
+	if (ev.shadow_failed || ev.live_exit == null || ev.shadow_exit == null) return false;
+	if (ev.live_exit !== ev.shadow_exit) return true;
+	if (!ev.exit_bar && !ev.shadow_exit_bar) return false;
+	const liveMs = ev.exit_bar ? Date.parse(ev.exit_bar) : Number.NaN;
+	const shadowMs = ev.shadow_exit_bar ? Date.parse(ev.shadow_exit_bar) : Number.NaN;
+	if (Number.isFinite(liveMs) && Number.isFinite(shadowMs)) return liveMs !== shadowMs;
+	return (ev.exit_bar ?? "") !== (ev.shadow_exit_bar ?? "");
+}
+
+export function manageShadowAttempted(ev: ManageEvalEvent): boolean {
+	return ev.kind === "shadow_manage_result" || ev.shadow_failed || ev.shadow_exit != null;
+}
+
+export function isComparableManageEval(ev: ManageEvalEvent): boolean {
+	return !ev.shadow_failed && ev.live_exit != null && ev.shadow_exit != null;
+}
+
+/** Keep positions distinct when a ticker has multiple managed trades in one bar. */
+export function dedupeManageEvaluations(events: ManageEvalEvent[]): ManageEvalEvent[] {
+	const map = new Map<string, ManageEvalEvent>();
+	for (const ev of events) {
+		const key = [
+			ev.strategy_name,
+			ev.client_name,
+			ev.ticker,
+			ev.bar_ts,
+			ev.entry_time,
+		].join("|");
+		const prev = map.get(key);
+		if (!prev) {
+			map.set(key, { ...ev, drift: computeManageDrift(ev) });
+			continue;
+		}
+		const merged: ManageEvalEvent = {
+			...prev,
+			...ev,
+			live_exit: ev.live_exit ?? prev.live_exit,
+			exit_bar: ev.exit_bar ?? prev.exit_bar,
+			shadow_exit: ev.shadow_exit ?? prev.shadow_exit,
+			shadow_exit_bar: ev.shadow_exit_bar ?? prev.shadow_exit_bar,
+			shadow_exit_idx: ev.shadow_exit_idx ?? prev.shadow_exit_idx,
+			shadow_manage_bar_ts:
+				ev.shadow_manage_bar_ts ?? prev.shadow_manage_bar_ts,
+			shadow_manage_ns: ev.shadow_manage_ns ?? prev.shadow_manage_ns,
+			shadow_failed: prev.shadow_failed || ev.shadow_failed,
+			shadow_error: ev.shadow_error ?? prev.shadow_error,
+		};
+		if (ev.kind === "shadow_manage_result" || prev.kind === "shadow_manage_result") {
+			merged.kind = "shadow_manage_result";
+		}
+		merged.drift = computeManageDrift(merged);
+		map.set(key, merged);
+	}
+	return Array.from(map.values()).sort((a, b) => a.ts - b.ts);
+}
+
+function summarizeManage(evals: ManageEvalEvent[]): ManageSummary {
+	const comparable = evals.filter(isComparableManageEval);
+	const driftCount = comparable.filter((ev) => ev.drift).length;
+	return {
+		evalCount: evals.length,
+		shadowAttemptCount: evals.filter(manageShadowAttempted).length,
+		shadowCount: comparable.length,
+		driftCount,
+		shadowFailedCount: evals.filter((ev) => ev.shadow_failed).length,
+		matchRate:
+			comparable.length > 0
+				? (comparable.length - driftCount) / comparable.length
+				: null,
+	};
+}
+
+function buildManageStrategyInsights(
+	evaluations: ManageEvalEvent[],
+): ManageStrategyInsights[] {
+	const groups = new Map<string, ManageEvalEvent[]>();
+	for (const ev of evaluations) {
+		const key = ev.strategy_name || "(unknown)";
+		const group = groups.get(key) ?? [];
+		group.push(ev);
+		groups.set(key, group);
+	}
+	return Array.from(groups.entries())
+		.map(([strategy_name, evals]) => ({
+			strategy_name,
+			client_name: evals.find((ev) => ev.client_name)?.client_name ?? "",
+			tickers: Array.from(new Set(evals.map((ev) => ev.ticker))).sort(),
+			...summarizeManage(evals),
+		}))
+		.sort((a, b) => b.evalCount - a.evalCount);
+}
+
 function buildStrategyInsights(evaluations: SignalEvalEvent[]): StrategyInsights[] {
 	const byStrategy = new Map<string, SignalEvalEvent[]>();
 	for (const ev of evaluations) {
@@ -580,6 +734,7 @@ export function buildInsightsFromEvents({
 	truncated,
 	heartbeats,
 	evaluations: rawEvals,
+	manageEvaluations: rawManageEvals = [],
 	alerts: rawAlerts,
 	nextBeforeMs = null,
 	evalTableLimit = 500,
@@ -591,12 +746,14 @@ export function buildInsightsFromEvents({
 	truncated: boolean;
 	heartbeats: HeartbeatEvent[];
 	evaluations: SignalEvalEvent[];
+	manageEvaluations?: ManageEvalEvent[];
 	alerts: DriftAlert[];
 	nextBeforeMs?: number | null;
 	/** Max rows kept for the shadow table (newest first) */
 	evalTableLimit?: number;
 }): MonitorInsights {
 	const evaluations = dedupeEvaluations(rawEvals);
+	const manageEvaluations = dedupeManageEvaluations(rawManageEvals);
 	const alerts = rawAlerts.slice().sort((a, b) => a.ts - b.ts);
 	const hbs = heartbeats.slice().sort((a, b) => a.ts - b.ts);
 
@@ -692,6 +849,10 @@ export function buildInsightsFromEvents({
 		sidecarStats: computeStageStats(evaluations, SIDECAR_STAGES),
 		freshnessStats: computeStageStats(evaluations, FRESHNESS_STAGES),
 		strategies: buildStrategyInsights(evaluations),
+		manageSummary: summarizeManage(manageEvaluations),
+		manageStrategies: buildManageStrategyInsights(manageEvaluations),
+		manageEvaluations: manageEvaluations.slice(-evalTableLimit).reverse(),
+		manageSeries: manageEvaluations,
 		latencySeries,
 		outcomeSeries: buildOutcomeSeries(latencySeries),
 		reasonPairs: buildReasonPairs(evaluations),
@@ -710,6 +871,7 @@ export function mergeMonitorInsights(
 		...older.evaluations.slice().reverse(),
 		...newer.evaluations.slice().reverse(),
 	];
+	const manageEvals = [...older.manageSeries, ...newer.manageSeries];
 	const alerts = [...older.alerts.slice().reverse(), ...newer.alerts.slice().reverse()];
 	const heartbeats = [...older.heartbeats, ...newer.heartbeats];
 
@@ -721,6 +883,7 @@ export function mergeMonitorInsights(
 		truncated: older.truncated || newer.truncated,
 		heartbeats,
 		evaluations: evals,
+		manageEvaluations: manageEvals,
 		alerts,
 		nextBeforeMs: older.nextBeforeMs ?? null,
 		evalTableLimit: 500,
@@ -752,6 +915,14 @@ export function mergeMonitorInsights(
 			shadow_reason: p.shadow_reason,
 		}));
 	merged.reasonPairs = buildReasonPairs(driftReasonPoints);
+
+	// Managed-exit detail rows are capped, but summary parity always uses the
+	// full series across progressive chunks.
+	const manageSeries = dedupeManageEvaluations(manageEvals);
+	merged.manageSeries = manageSeries;
+	merged.manageEvaluations = manageSeries.slice(-500).reverse();
+	merged.manageSummary = summarizeManage(manageSeries);
+	merged.manageStrategies = buildManageStrategyInsights(manageSeries);
 
 	// Recompute coverage rates from full series (table evals are capped)
 	const attemptOutcomes = latencySeries.filter(
@@ -813,6 +984,21 @@ function asNum(v: unknown, fallback = 0): number {
 	return fallback;
 }
 
+function asManageExitClass(v: unknown): ManageExitClass | null {
+	const value = asStr(v).trim().toLowerCase();
+	return value === "hold" ||
+		value === "proximity" ||
+		value === "max_hold" ||
+		value === "strategy_manage"
+		? value
+		: null;
+}
+
+function asOptionalStr(v: unknown): string | null {
+	const value = asStr(v).trim();
+	return value === "" ? null : value;
+}
+
 function normalizeSpans(
 	raw: Partial<Record<string, number>>,
 ): Partial<Record<LatencyStage, number>> {
@@ -843,7 +1029,7 @@ function extractRawSpans(
 export function parseMonitorJsonLine(
 	ts: number,
 	msg: string,
-): HeartbeatEvent | SignalEvalEvent | null {
+): HeartbeatEvent | SignalEvalEvent | ManageEvalEvent | null {
 	const trimmed = msg.trim();
 	if (!trimmed.startsWith("{")) return null;
 	let raw: Record<string, unknown>;
@@ -932,6 +1118,32 @@ export function parseMonitorJsonLine(
 		ev.drift = computeDrift(ev);
 		return ev;
 	}
+	if (kind === "manage_evaluated" || kind === "shadow_manage_result") {
+		const ev: ManageEvalEvent = {
+			kind,
+			ts,
+			strategy_name: asStr(raw.strategy_name),
+			client_name: asStr(raw.client_name),
+			ticker: asStr(raw.ticker).toUpperCase(),
+			bar_ts: asStr(raw.bar_ts),
+			end_dt: asStr(raw.end_dt),
+			interval: asStr(raw.interval),
+			manage_interval: asStr(raw.manage_interval),
+			entry_time: asStr(raw.entry_time),
+			live_exit: asManageExitClass(raw.live_exit),
+			exit_bar: asOptionalStr(raw.exit_bar),
+			shadow_exit: asManageExitClass(raw.shadow_exit),
+			shadow_exit_bar: asOptionalStr(raw.shadow_exit_bar),
+			shadow_exit_idx: asInt(raw.shadow_exit_idx),
+			shadow_manage_bar_ts: asOptionalStr(raw.shadow_manage_bar_ts),
+			shadow_manage_ns: asInt(raw.shadow_manage_ns),
+			shadow_failed: Boolean(raw.shadow_failed),
+			shadow_error: asOptionalStr(raw.shadow_error),
+			drift: false,
+		};
+		ev.drift = computeManageDrift(ev);
+		return ev;
+	}
 	return null;
 }
 
@@ -945,6 +1157,11 @@ const ALERT_PATTERNS: { type: DriftAlert["type"]; re: RegExp }[] = [
 	{
 		type: "shadow_failed",
 		re: /\[MONITOR\].*shadow_backtest_signal failed/i,
+	},
+	{ type: "manage_exit_drift", re: /\[MONITOR\]\s+manage_exit_drift\b/i },
+	{
+		type: "shadow_manage_failed",
+		re: /\[MONITOR\].*shadow_manage_exit failed/i,
 	},
 	{ type: "bar_staleness_breach", re: /\[MONITOR\]\s+bar_staleness_breach\b/i },
 ];

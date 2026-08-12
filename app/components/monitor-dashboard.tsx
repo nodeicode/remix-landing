@@ -42,131 +42,15 @@ import {
 	mergeMonitorInsights,
 	type EvalOutcome,
 	type MonitorInsights as AggregateInsights,
-	type OutcomeBucket,
-	type ReasonPair,
+	type SignalEvalEvent,
+	type StageStats,
 } from "../utils/monitor-aggregate";
 
 type Env = "prod" | "staging";
 type Preset = "1d" | "1w" | "1m";
 
-interface StageStats {
-	stage: string;
-	count: number;
-	p50_ns: number | null;
-	p99_ns: number | null;
-	max_ns: number | null;
-}
-
-interface SignalEval {
-	kind: string;
-	ts: number;
-	strategy_name: string;
-	client_name: string;
-	ticker: string;
-	bar_ts: string;
-	interval: string;
-	live_signal: string;
-	live_confidence: number;
-	live_reason: string;
-	live_frame_has_bar: boolean;
-	shadow_signal: string | null;
-	shadow_confidence: number | null;
-	shadow_reason: string;
-	frame_has_bar: boolean;
-	shadow_failed: boolean;
-	shadow_error: string | null;
-	drift: boolean;
-	expected_delay_gap?: boolean;
-	active_positions: number;
-	phase: string;
-	data_delay_min?: number;
-	freshness_slo_eligible?: boolean;
-	spans: Record<string, number | undefined>;
-}
-
-interface Heartbeat {
-	ts: number;
-	queue_lag_ns: number | null;
-}
-
-interface DriftAlert {
-	ts: number;
-	type: string;
-	msg: string;
-}
-
-interface StrategyInsights {
-	strategy_name: string;
-	client_name: string;
-	evalCount: number;
-	shadowCount: number;
-	driftCount: number;
-	barMissingCount: number;
-	shadowFailedCount: number;
-	matchRate: number | null;
-	barCoverage: number | null;
-	shadowSuccessRate: number | null;
-	outcomeCounts: Record<EvalOutcome, number>;
-	tickers: string[];
-	hotPathStats: StageStats[];
-	sidecarStats: StageStats[];
-	freshnessStats: StageStats[];
-	hotPathTotals: StageStats[];
-	signalCounts: Record<string, number>;
-}
-
-interface LatencyPoint {
-	ts: number;
-	strategy_name: string;
-	ticker: string;
-	hot: Record<string, number | undefined>;
-	sidecar: Record<string, number | undefined>;
-	bar_staleness_ns: number | null;
-	bar_staleness_excess_ns?: number | null;
-	data_delay_min?: number;
-	freshness_slo_eligible?: boolean;
-	outcome: EvalOutcome;
-	live_reason: string;
-	shadow_reason: string;
-}
-
-interface MonitorInsights {
-	env: Env;
-	startMs: number;
-	endMs: number;
-	fetchMs: number;
-	truncated: boolean;
-	summary: {
-		lastHeartbeatAgeMs: number | null;
-		heartbeatCount: number;
-		evalCount: number;
-		shadowCount: number;
-		driftCount: number;
-		barMissingCount: number;
-		shadowFailedCount: number;
-		matchRate: number | null;
-		barCoverage: number | null;
-		shadowSuccessRate: number | null;
-		shadowAttemptCount: number;
-		queueLagP50Ns: number | null;
-		queueLagP99Ns: number | null;
-		alertCount: number;
-		barStalenessP50Ns: number | null;
-		barStalenessP99Ns: number | null;
-	};
-	heartbeats: Heartbeat[];
-	evaluations: SignalEval[];
-	hotPathStats: StageStats[];
-	hotPathTotals: StageStats[];
-	sidecarStats: StageStats[];
-	freshnessStats: StageStats[];
-	strategies: StrategyInsights[];
-	latencySeries: LatencyPoint[];
-	outcomeSeries: OutcomeBucket[];
-	reasonPairs: ReasonPair[];
-	alerts: DriftAlert[];
-	nextBeforeMs?: number | null;
-}
+type SignalEval = SignalEvalEvent;
+type MonitorInsights = AggregateInsights;
 
 function evalHasIssue(e: SignalEval): boolean {
 	if (e.expected_delay_gap) return false;
@@ -357,6 +241,11 @@ function formatBarOpen(iso: string, interval: string): string {
 		minute: "2-digit",
 	});
 	return interval ? `${open} · ${interval}` : open;
+}
+
+function formatExit(exitClass: string | null, exitBar: string | null): string {
+	if (exitClass == null) return "—";
+	return exitBar ? `${exitClass} · ${formatBarOpen(exitBar, "")}` : exitClass;
 }
 
 function findStage(stats: StageStats[], stage: string): StageStats | undefined {
@@ -750,6 +639,12 @@ export function MonitorDashboard() {
 		if (!data || strategyFilter === "all") return null;
 		return data.strategies.find((s) => s.strategy_name === strategyFilter) ?? null;
 	}, [data, strategyFilter]);
+	const activeManageStrategy = useMemo(() => {
+		if (!data || strategyFilter === "all") return null;
+		return (
+			data.manageStrategies.find((s) => s.strategy_name === strategyFilter) ?? null
+		);
+	}, [data, strategyFilter]);
 
 	const hotPathStats = activeStrategy?.hotPathStats ?? data?.hotPathStats ?? [];
 	const hotPathTotals = activeStrategy?.hotPathTotals ?? data?.hotPathTotals ?? [];
@@ -787,6 +682,14 @@ export function MonitorDashboard() {
 		if (effectiveTableView === "issues") list = list.filter(evalHasIssue);
 		return list;
 	}, [data, strategyFilter, effectiveTableView]);
+
+	const filteredManageEvals = useMemo(() => {
+		if (!data) return [];
+		return strategyFilter === "all"
+			? data.manageEvaluations
+			: data.manageEvaluations.filter((ev) => ev.strategy_name === strategyFilter);
+	}, [data, strategyFilter]);
+	const manageSummary = activeManageStrategy ?? data?.manageSummary ?? null;
 
 	const queueDropAlerts = useMemo(
 		() => (data ? data.alerts.filter((a) => a.type === "queue_drops").length : 0),
@@ -1561,6 +1464,65 @@ export function MonitorDashboard() {
 											);
 										})
 									)}
+								</tbody>
+							</table>
+						</div>
+					</section>
+
+					{/* Managed exits intentionally remain separate from entry signal parity. */}
+					<section className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+						<div className="flex flex-wrap items-center gap-4 px-4 py-3 border-b border-zinc-800">
+							<div className="min-w-0 mr-auto">
+								<h3 className="text-xs font-semibold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
+									<GitCompare className="w-3.5 h-3.5" />
+									Managed exit parity
+								</h3>
+								<p className="text-[10px] text-zinc-600 mt-0.5">
+									Exact match requires the same exit class and decision bar
+								</p>
+							</div>
+							{[
+								["match", manageSummary?.matchRate == null ? "—" : `${(manageSummary.matchRate * 100).toFixed(1)}%`],
+								["compared", String(manageSummary?.shadowCount ?? 0)],
+								["drifts", String(manageSummary?.driftCount ?? 0)],
+								["shadow fails", String(manageSummary?.shadowFailedCount ?? 0)],
+							].map(([label, value]) => (
+								<div key={label} className="text-right">
+									<p className={cn("text-lg font-semibold tabular-nums", label === "drifts" && (manageSummary?.driftCount ?? 0) > 0 ? "text-red-400" : label === "shadow fails" && (manageSummary?.shadowFailedCount ?? 0) > 0 ? "text-amber-400" : "text-zinc-100")}>{value}</p>
+									<p className="text-[9px] uppercase tracking-wide text-zinc-600">{label}</p>
+								</div>
+							))}
+						</div>
+						<div className="overflow-x-auto max-h-[24rem]">
+							<table className="w-full text-xs">
+								<thead className="sticky top-0 bg-zinc-900 text-[10px] uppercase tracking-widest text-zinc-500">
+									<tr className="border-b border-zinc-800">
+										<th className="text-left font-medium px-3 py-2">Emitted</th>
+										<th className="text-left font-medium px-3 py-2">Strategy</th>
+										<th className="text-left font-medium px-3 py-2">Ticker</th>
+										<th className="text-left font-medium px-3 py-2">Position entry</th>
+										<th className="text-left font-medium px-3 py-2">Manage bar</th>
+										<th className="text-left font-medium px-3 py-2">Live exit</th>
+										<th className="text-left font-medium px-3 py-2">Shadow exit</th>
+										<th className="text-left font-medium px-3 py-2">Status</th>
+									</tr>
+								</thead>
+								<tbody>
+									{filteredManageEvals.length === 0 ? (
+										<tr><td colSpan={8} className="px-3 py-10 text-center text-zinc-600">No managed-exit evaluations</td></tr>
+									) : filteredManageEvals.map((ev, i) => {
+										const status = ev.shadow_failed ? "shadow fail" : ev.shadow_exit == null ? "no shadow" : ev.drift ? "drift" : "matched";
+										return <tr key={`${ev.ts}-${ev.strategy_name}-${ev.ticker}-${ev.entry_time}-${i}`} className={cn("border-b border-zinc-800/50 hover:bg-white/[0.02]", ev.drift && "bg-red-950/20", ev.shadow_failed && "bg-amber-950/15")}>
+											<td className="px-3 py-2 text-zinc-500 tabular-nums whitespace-nowrap">{formatTs(ev.ts)}</td>
+											<td className="px-3 py-2 text-zinc-300">{ev.strategy_name || "—"}</td>
+											<td className="px-3 py-2 text-zinc-200 font-medium">{ev.ticker}</td>
+											<td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{formatBarOpen(ev.entry_time, "")}</td>
+											<td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{formatBarOpen(ev.bar_ts, ev.manage_interval || ev.interval)}</td>
+											<td className="px-3 py-2 text-zinc-300 whitespace-nowrap">{formatExit(ev.live_exit, ev.exit_bar)}</td>
+											<td className="px-3 py-2 whitespace-nowrap"><span className={cn(ev.drift ? "text-red-400" : ev.shadow_failed ? "text-amber-400" : "text-cyan-400")}>{ev.shadow_failed ? "failed" : formatExit(ev.shadow_exit, ev.shadow_exit_bar)}</span>{ev.shadow_error && <span className="block text-[10px] text-zinc-600 max-w-[16rem] truncate" title={ev.shadow_error}>{ev.shadow_error}</span>}</td>
+											<td className={cn("px-3 py-2 text-[10px] font-medium uppercase tracking-wide", status === "matched" ? "text-emerald-500/80" : status === "drift" ? "text-red-400" : status === "no shadow" ? "text-zinc-500" : "text-amber-400")}>{status}</td>
+										</tr>;
+									})}
 								</tbody>
 							</table>
 						</div>

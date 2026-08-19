@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { fetchLogs } from "~/utils/cloudwatch.server";
+import { fetchLogsParallel } from "~/utils/cloudwatch.server";
 
 export const config = {
   runtime: 'nodejs',
@@ -30,7 +30,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const chunkStartMs = Math.max(startMs, beforeMs - CHUNK_MS);
 	const t0 = Date.now();
 	try {
-		const result = await fetchLogs({
+		// Fetch the full day chunk from both log groups. Raw logs must not use the
+		// capped newest-biased reader or a market-hours filter: operators need
+		// pre/post-market and later-day context as well.
+		const result = await fetchLogsParallel({
 			envs: envs.length > 0 ? envs : ["prod"],
 			startMs: chunkStartMs,
 			endMs: beforeMs,

@@ -23,6 +23,7 @@ interface Meta {
 
 type Env = "prod" | "staging";
 type Preset = "1d" | "1w" | "1m" | "3m";
+type SourceFilter = "all" | "trader" | "monitor";
 
 const PRESETS: { key: Preset; label: string; days: number }[] = [
 	{ key: "1d", label: "1d", days: 1 },
@@ -104,6 +105,7 @@ export function LogViewer() {
 	const [range, setRange] = useState<DateRange | undefined>();
 	const [calOpen, setCalOpen] = useState(false);
 	const [textFilter, setTextFilter] = useState("");
+	const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 	const [lines, setLines] = useState<LogLine[]>([]);
 	const [meta, setMeta] = useState<Meta | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
@@ -220,10 +222,14 @@ export function LogViewer() {
 		return () => observer.disconnect();
 	}, [hasMore, loadMore, loadMoreKey]);
 
-	// Client-side: text filter only (market hours already filtered server-side)
-	const visible = textFilter.trim()
-		? lines.filter((l) => l.msg.toLowerCase().includes(textFilter.toLowerCase()))
-		: lines;
+	// Client-side filters (market hours are already filtered server-side).
+	const visible = lines.filter((line) => {
+		const source = line.group ?? "trader";
+		return (
+			(sourceFilter === "all" || source === sourceFilter) &&
+			(!textFilter.trim() || line.msg.toLowerCase().includes(textFilter.toLowerCase()))
+		);
+	});
 
 	const rangeLabel = range?.from
 		? range.to
@@ -251,6 +257,26 @@ export function LogViewer() {
 							)}
 						>
 							{e}
+						</button>
+					))}
+				</div>
+
+				<div
+					className="flex rounded-lg border border-zinc-800 bg-zinc-900 p-0.5"
+					aria-label="Log source filter"
+				>
+					{(["all", "trader", "monitor"] as const).map((source) => (
+						<button
+							key={source}
+							onClick={() => setSourceFilter(source)}
+							className={cn(
+								"px-2 py-1.5 text-[10px] rounded-md capitalize transition-colors",
+								sourceFilter === source
+									? "bg-zinc-700 text-zinc-100"
+									: "text-zinc-500 hover:text-zinc-300",
+							)}
+						>
+							{source === "all" ? "All" : source === "trader" ? "Trader" : "Monitor"}
 						</button>
 					))}
 				</div>
@@ -351,13 +377,13 @@ export function LogViewer() {
 				{/* Column header */}
 				<div className="flex items-center shrink-0 border-b border-zinc-800 bg-zinc-900/80 select-none">
 					<div className="w-0.75 shrink-0" />
-					<span className="px-3 py-2 w-22.5 text-[10px] text-zinc-600 uppercase tracking-widest">
+					<span className="px-2 sm:px-3 py-2 w-18 sm:w-22.5 text-[10px] text-zinc-600 uppercase tracking-widest">
 						Time
 					</span>
-					<span className="px-3 py-2 w-32 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
+					<span className="hidden sm:block px-3 py-2 w-32 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
 						Level
 					</span>
-					<span className="px-3 py-2 w-16 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
+					<span className="hidden sm:block px-3 py-2 w-16 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
 						Src
 					</span>
 					<span className="px-3 py-2 text-[10px] text-zinc-600 uppercase tracking-widest border-l border-zinc-800/60">
@@ -405,14 +431,14 @@ export function LogViewer() {
 										<div className={cn("w-0.75 shrink-0", styles.accent)} />
 
 										{/* Timestamp */}
-										<span className="shrink-0 flex items-center px-3 w-22.5 text-[11px] text-zinc-500 tabular-nums select-none whitespace-nowrap border-r border-zinc-800/40">
+								<span className="shrink-0 flex items-center px-2 sm:px-3 w-18 sm:w-22.5 text-[10px] sm:text-[11px] text-zinc-500 tabular-nums select-none whitespace-nowrap border-r border-zinc-800/40">
 											{formatTs(line.ts)}
 										</span>
 
 										{/* Level */}
 										<span
 											className={cn(
-												"shrink-0 flex items-center px-3 w-32 text-[10px] font-semibold uppercase tracking-wider border-r border-zinc-800/40",
+										"hidden sm:flex shrink-0 items-center px-3 w-32 text-[10px] font-semibold uppercase tracking-wider border-r border-zinc-800/40",
 												styles.badge,
 											)}
 										>
@@ -422,7 +448,7 @@ export function LogViewer() {
 										{/* Source group */}
 										<span
 											className={cn(
-												"shrink-0 flex items-center px-2 w-16 text-[10px] font-medium tracking-wide border-r border-zinc-800/40",
+										"hidden sm:flex shrink-0 items-center px-2 w-16 text-[10px] font-medium tracking-wide border-r border-zinc-800/40",
 												line.group === "monitor" ? "text-cyan-500/80" : "text-zinc-600",
 											)}
 										>
@@ -432,7 +458,7 @@ export function LogViewer() {
 										{/* Message */}
 										<span
 											className={cn(
-												"flex-1 py-2 px-3 break-all whitespace-pre-wrap leading-5 min-w-0 text-[11px]",
+										"flex-1 py-2 px-2 sm:px-3 break-words whitespace-pre-wrap leading-5 min-w-0 text-[11px]",
 												styles.msg,
 											)}
 										>

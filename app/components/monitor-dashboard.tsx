@@ -15,12 +15,15 @@ import {
 	ShieldAlert,
 } from "lucide-react";
 import {
+	Area,
+	AreaChart,
 	Bar,
 	BarChart,
 	CartesianGrid,
 	ComposedChart,
 	Legend,
 	Line,
+	ReferenceLine,
 	XAxis,
 	YAxis,
 } from "recharts";
@@ -223,6 +226,172 @@ function formatTs(ts: number): string {
 		hour: "2-digit",
 		minute: "2-digit",
 	});
+}
+
+type LatencyTrendKey =
+	| "hotTotalMs"
+	| "generateMs"
+	| "queueLagMs"
+	| "freshnessMs"
+	| "fetchDataMs"
+	| "attachCloseMs"
+	| "indicatorsMs"
+	| "manageGateMs";
+
+interface LatencyTrendPoint {
+	ts: number;
+	label: string;
+	hotTotalMs?: number;
+	generateMs?: number;
+	queueLagMs?: number;
+	freshnessMs?: number;
+	fetchDataMs?: number;
+	attachCloseMs?: number;
+	indicatorsMs?: number;
+	manageGateMs?: number;
+}
+
+interface LatencyPeak {
+	value: number;
+	ts: number;
+}
+
+/**
+ * Produce at most 72 chronological buckets. Values are bucket maxima, rather
+ * than averages, because an observability chart should retain brief spikes.
+ */
+function buildLatencyTrend(series: MonitorInsights["latencySeries"]): LatencyTrendPoint[] {
+	if (series.length === 0) return [];
+	const sorted = [...series].sort((a, b) => a.ts - b.ts);
+	const start = sorted[0]!.ts;
+	const end = sorted[sorted.length - 1]!.ts;
+	const bucketMs = Math.max(1, Math.ceil((end - start + 1) / 72));
+	const buckets = new Map<number, LatencyTrendPoint>();
+
+	const setMax = (point: LatencyTrendPoint, key: LatencyTrendKey, value: number | null) => {
+		if (value == null || !Number.isFinite(value)) return;
+		point[key] = Math.max(point[key] ?? 0, value);
+	};
+
+	for (const sample of sorted) {
+		const bucketTs = start + Math.floor((sample.ts - start) / bucketMs) * bucketMs;
+		const point = buckets.get(bucketTs) ?? { ts: bucketTs, label: formatTs(bucketTs) };
+		buckets.set(bucketTs, point);
+		const hotValues = Object.values(sample.hot).filter(
+			(value): value is number => typeof value === "number",
+		);
+		setMax(point, "hotTotalMs", hotValues.length ? hotValues.reduce((a, b) => a + b, 0) / 1e6 : null);
+		setMax(point, "generateMs", nsToMs(sample.hot.generate_signals_ns));
+		setMax(point, "fetchDataMs", nsToMs(sample.hot.fetch_data_ns));
+		setMax(point, "attachCloseMs", nsToMs(sample.hot.attach_raw_close_ns));
+		setMax(point, "indicatorsMs", nsToMs(sample.hot.indicators_ns));
+		setMax(point, "manageGateMs", nsToMs(sample.hot.process_other_ns));
+		setMax(point, "queueLagMs", nsToMs(sample.sidecar.queue_lag_ns));
+		setMax(
+			point,
+			"freshnessMs",
+			sample.freshness_slo_eligible ? nsToMs(sample.bar_staleness_excess_ns) : null,
+		);
+	}
+	return Array.from(buckets.values()).sort((a, b) => a.ts - b.ts);
+}
+
+function findLatencyPeak(
+	points: LatencyTrendPoint[],
+	key: LatencyTrendKey,
+): LatencyPeak | null {
+	let peak: LatencyPeak | null = null;
+	for (const point of points) {
+		const value = point[key];
+		if (value != null && (!peak || value > peak.value)) peak = { value, ts: point.ts };
+	}
+	return peak;
+}
+
+function LatencyTrendChart({
+	title,
+	description,
+	data,
+	metrics,
+}: {
+	title: string;
+	description: string;
+	data: LatencyTrendPoint[];
+	metrics: { key: LatencyTrendKey; label: string; color: string; sloMs?: number }[];
+}) {
+	const config: ChartConfig = Object.fromEntries(
+		metrics.map((metric) => [metric.key, { label: metric.label, color: metric.color }]),
+	);
+	const hasData = metrics.some((metric) => data.some((point) => point[metric.key] != null));
+	if (!hasData) return null;
+
+	return (
+		<div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
+			<div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+				<div>
+					<p className="text-[10px] uppercase tracking-widest text-zinc-500">{title}</p>
+					<p className="text-[9px] text-zinc-600 mt-0.5">{description}</p>
+				</div>
+				<div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-[9px] tabular-nums">
+					{metrics.map((metric) => {
+						const peak = findLatencyPeak(data, metric.key);
+						return (
+							<span key={metric.key} className="text-zinc-500">
+								<span style={{ color: metric.color }}>{metric.label}</span>{" "}
+								peak {peak ? formatMsValue(peak.value) : "—"}
+								{peak && <span className="text-zinc-600"> · {formatTs(peak.ts)}</span>}
+							</span>
+						);
+					})}
+				</div>
+			</div>
+			<ChartContainer config={config} className="h-44 w-full aspect-auto">
+				<AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+					<defs>
+						{metrics.map((metric) => (
+							<linearGradient key={metric.key} id={`latency-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
+								<stop offset="5%" stopColor={metric.color} stopOpacity={0.18} />
+								<stop offset="95%" stopColor={metric.color} stopOpacity={0} />
+							</linearGradient>
+						))}
+					</defs>
+					<CartesianGrid vertical={false} strokeDasharray="3 3" />
+					<XAxis dataKey="ts" tickLine={false} axisLine={false} tick={{ fontSize: 9 }} minTickGap={48} tickFormatter={(value: number) => formatTs(value)} />
+					<YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10 }} width={48} tickFormatter={(value: number) => formatMsValue(value, 0)} />
+					<ChartTooltip
+						content={
+							<ChartTooltipContent
+								labelFormatter={(_, payload) =>
+									formatTs(
+										((payload?.[0]?.payload as unknown as LatencyTrendPoint | undefined)
+											?.ts ?? 0),
+									)
+								}
+								formatter={(value, name) => (
+									<>
+										<span className="text-zinc-400">{name}</span>
+										<span className="ml-auto font-mono text-zinc-50">
+											{formatMsValue(Number(value))}
+										</span>
+									</>
+								)}
+							/>
+						}
+					/>
+					{metrics.filter((metric) => metric.sloMs != null).map((metric) => (
+						<ReferenceLine key={`${metric.key}-slo`} y={metric.sloMs} stroke={metric.color} strokeDasharray="4 4" strokeOpacity={0.55} />
+					))}
+					{metrics.map((metric) => (
+						<Area key={metric.key} type="monotone" dataKey={metric.key} name={metric.label} stroke={metric.color} fill={`url(#latency-${metric.key})`} strokeWidth={1.5} dot={false} connectNulls />
+					))}
+				</AreaChart>
+			</ChartContainer>
+			<p className="mt-1 text-[9px] text-zinc-600">
+				Each point is the maximum observed in its time bucket
+				{metrics.some((metric) => metric.sloMs != null) && " · dashed line = SLO"}
+			</p>
+		</div>
+	);
 }
 
 function truncateReason(s: string, max = 28): string {
@@ -659,6 +828,11 @@ export function MonitorDashboard() {
 		if (strategyFilter === "all") return data.latencySeries;
 		return data.latencySeries.filter((p) => p.strategy_name === strategyFilter);
 	}, [data, strategyFilter]);
+
+	const latencyTrendData = useMemo(
+		() => buildLatencyTrend(filteredSeries),
+		[filteredSeries],
+	);
 
 	const scopedIssueCount = useMemo(() => {
 		if (!data) return 0;
@@ -1583,11 +1757,52 @@ export function MonitorDashboard() {
 							</div>
 						</button>
 						{showLatencyDetails && (
-							<div className="border-t border-zinc-800 px-4 py-4">
-								<HotPathWaterfall
-									steps={waterfallSteps}
-									totals={hotPathTotals}
-								/>
+							<div className="border-t border-zinc-800 px-4 py-4 space-y-4">
+								<div>
+									<p className="text-[10px] text-zinc-500 mb-2 uppercase tracking-widest">
+										Latency over time
+									</p>
+									<div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+										<LatencyTrendChart
+											title="Signal processing"
+											description="End-to-end exclusive hot path and signal generation"
+											data={latencyTrendData}
+											metrics={[
+												{ key: "hotTotalMs", label: "hot path", color: "#f59e0b", sloMs: SLO.hotPathTotalP99Ms },
+												{ key: "generateMs", label: "generate", color: "#34d399", sloMs: SLO.generateSignalsP99Ms },
+											]}
+										/>
+										<LatencyTrendChart
+											title="Queue lag"
+											description="Time waiting before the sidecar begins work"
+											data={latencyTrendData}
+											metrics={[
+												{ key: "queueLagMs", label: "queue lag", color: "#60a5fa", sloMs: SLO.queueLagP99Ms },
+											]}
+										/>
+										<LatencyTrendChart
+											title="Hot-path component breakdown"
+											description="Which exclusive stage is driving a processing spike"
+											data={latencyTrendData}
+											metrics={[
+												{ key: "fetchDataMs", label: "fetch data", color: HOT_COLORS.fetch_data_ns },
+												{ key: "attachCloseMs", label: "attach close", color: HOT_COLORS.attach_raw_close_ns },
+												{ key: "indicatorsMs", label: "indicators", color: HOT_COLORS.indicators_ns },
+												{ key: "generateMs", label: "generate", color: HOT_COLORS.generate_signals_ns },
+												{ key: "manageGateMs", label: "manage + gate", color: HOT_COLORS.process_other_ns },
+											]}
+										/>
+										<LatencyTrendChart
+											title="Bar freshness excess"
+											description={`Lag beyond the ${SLO.dataDelayMin}m feed delay; scheduled bars are excluded`}
+											data={latencyTrendData}
+											metrics={[
+												{ key: "freshnessMs", label: "freshness", color: "#c084fc", sloMs: SLO.barStalenessP99Ms },
+											]}
+										/>
+									</div>
+								</div>
+								<HotPathWaterfall steps={waterfallSteps} totals={hotPathTotals} />
 							</div>
 						)}
 					</section>

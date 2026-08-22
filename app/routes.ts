@@ -12,5 +12,7 @@ export default [
   route("api/portfolio-history", "routes/api.portfolio-history.ts"),
   route("api/signals", "routes/api.signals.ts"),
   route("api/monitor", "routes/api.monitor.ts"),
+	route("api/public-monitor", "routes/api.public-monitor.ts"),
   route("api/config", "routes/api.config.ts"),
+  route("systems/derivatives", "routes/systems.derivatives.tsx"),
 ] satisfies RouteConfig;

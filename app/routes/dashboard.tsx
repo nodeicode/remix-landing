@@ -621,7 +621,7 @@ export default function Dashboard() {
 						<div className="absolute inset-0 rounded-full border-2 border-zinc-800" />
 						<div className="absolute inset-0 rounded-full border-2 border-t-blue-500 animate-spin" />
 					</div>
-					<p className="text-zinc-400 text-sm">Checking device access…</p>
+					<p className="text-zinc-400 text-sm">Checking device access</p>
 				</div>
 			</div>
 		);

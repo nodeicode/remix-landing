@@ -43,6 +43,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    include: ["@radix-ui/react-popover", "recharts"],
+		// Keep React Router and the renderer bound to the same optimized React module.
+    include: ["react", "react-dom", "react-dom/client", "react-router", "@radix-ui/react-popover", "recharts"],
   },
 });

@@ -21,6 +21,8 @@ const NavIcon = (props: {
 			default:
 				return <UserIcon {...p} />;
 			case 1:
+				return <BeakerIcon {...p} />;
+			case 2:
 				return <BriefcaseIcon {...p} />;
 		}
 	};
@@ -31,13 +33,15 @@ const NavIcon = (props: {
 			default:
 				return "About";
 			case 1:
+				return "Systems";
+			case 2:
 				return "Work";
 		}
 	};
 
 	const scrollToSection = () => {
 		if (!active) {
-			const sectionIds = ["about", "work"];
+			const sectionIds = ["about", "systems", "work"];
 			const targetId = sectionIds[props.currentIcon];
 			const element = document.getElementById(targetId);
 			if (element) {
@@ -112,6 +116,13 @@ export default function Nav({
 				setIcon={setIcon}
 				onManualScroll={onManualScroll}
 				currentIcon={1}
+			/>
+			<NavIcon
+				textColor={getTextColor()}
+				activeIcon={activeIcon}
+				setIcon={setIcon}
+				onManualScroll={onManualScroll}
+				currentIcon={2}
 			/>
 		</div>
 	);

@@ -5,6 +5,7 @@ import { useInView } from "react-intersection-observer";
 // Import your existing component content
 import IndexContent from "../components/about";
 import MyWorkContent from "../components/myWork";
+import SystemsDiagnostic from "../components/systems-diagnostic";
 import { useDarkMode } from "~/root";
 import Nav from "../components/nav";
 
@@ -48,6 +49,7 @@ export default function App() {
 	const scrollTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 	const [sectionVisibility, setSectionVisibility] = useState({
 		about: { inView: false, ratio: 0 },
+		systems: { inView: false, ratio: 0 },
 		work: { inView: false, ratio: 0 },
 	});
 
@@ -65,7 +67,7 @@ export default function App() {
 	useEffect(() => {
 		if (isManualScrolling) return;
 
-		const sections = ["about", "work"];
+		const sections = ["about", "systems", "work"];
 		let maxRatio = 0;
 		let activeIndex = 0;
 
@@ -98,6 +100,7 @@ export default function App() {
 			// Force update visibility state after manual scroll completes
 			setSectionVisibility({
 				about: { inView: false, ratio: 0 },
+				systems: { inView: false, ratio: 0 },
 				work: { inView: false, ratio: 0 },
 			});
 		}, 1500); // Increased timeout for smoother transition
@@ -123,6 +126,13 @@ export default function App() {
 						isManualScrolling={isManualScrolling}
 					>
 						<IndexContent />
+					</SectionWrapper>
+					<SectionWrapper
+						id="systems"
+						onInView={handleSectionView("systems")}
+						isManualScrolling={isManualScrolling}
+					>
+						<SystemsDiagnostic view="preview" />
 					</SectionWrapper>
 					<SectionWrapper
 						id="work"

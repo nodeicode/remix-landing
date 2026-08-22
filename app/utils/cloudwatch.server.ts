@@ -11,7 +11,7 @@ export interface LogLine {
 	group: "trader" | "monitor";
 }
 
-const LOG_GROUPS: Record<"prod" | "staging", { name: string; group: "trader" | "monitor" }[]> = {
+const DEFAULT_LOG_GROUPS: Record<"prod" | "staging", { name: string; group: "trader" | "monitor" }[]> = {
 	prod: [
 		{ name: "/trading/prod/trader", group: "trader" },
 		{ name: "/trading/prod/monitor", group: "monitor" },
@@ -21,6 +21,15 @@ const LOG_GROUPS: Record<"prod" | "staging", { name: string; group: "trader" | "
 		{ name: "/trading/staging/monitor", group: "monitor" },
 	],
 };
+
+/** Deployment overrides allow the dashboard to follow the actual CloudWatch naming scheme. */
+function logGroups(env: "prod" | "staging") {
+	const prefix = env === "prod" ? "CLOUDWATCH_PROD" : "CLOUDWATCH_STAGING";
+	return DEFAULT_LOG_GROUPS[env].map((entry) => ({
+		...entry,
+		name: process.env[`${prefix}_${entry.group.toUpperCase()}_LOG_GROUP`] ?? entry.name,
+	}));
+}
 
 const MAX_LINES_PER_GROUP = 2000;
 const MAX_PAGES = 3; // legacy path safety cap (signals / truncated newest)
@@ -216,7 +225,7 @@ export async function fetchLogs({
 	const allow = groups ? new Set(groups) : null;
 
 	const jobs = envs.flatMap((env) =>
-		LOG_GROUPS[env]
+		logGroups(env)
 			.filter(({ group }) => !allow || allow.has(group))
 			.map(async ({ name, group }) => {
 				const result = await fetchLogGroupNewest(
@@ -263,7 +272,7 @@ export async function fetchLogsParallel({
 	const allLines: LogLine[] = [];
 
 	const targets = envs.flatMap((env) =>
-		LOG_GROUPS[env]
+		logGroups(env)
 			.filter(({ group }) => !allow || allow.has(group))
 			.map(({ name, group }) => ({ env, name, group })),
 	);

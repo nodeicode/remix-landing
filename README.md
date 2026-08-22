@@ -8,7 +8,7 @@ Embed the live, server-rendered card anywhere that accepts an image (including a
 <img src="https://lohitaryan.dev/api/github-card" alt="Lohit Aryan Engineering Monitor" width="900" />
 ```
 
-Use `?theme=light` for light backgrounds. The endpoint contains public GitHub totals and the already-sanitised public monitor summary only; set `GITHUB_TOKEN` in deployment for higher GitHub API limits, and optionally `GITHUB_USERNAME` to override `nodeicode`.
+Use `?theme=light` for light backgrounds. The endpoint contains portfolio information and the already-sanitised public monitor summary only; it makes no GitHub API requests.
 
 - [Remix Docs](https://remix.run/docs)
 

@@ -41,13 +41,13 @@ import { LogViewer } from "./signals-timeline";
 import {
 	buildOutcomeSeries,
 	buildReasonPairs,
-	DEFAULT_DATA_DELAY_MIN,
 	mergeMonitorInsights,
 	type EvalOutcome,
 	type MonitorInsights as AggregateInsights,
 	type SignalEvalEvent,
 	type StageStats,
 } from "../utils/monitor-aggregate";
+import { MONITOR_SLO as SLO } from "../utils/monitor-slo";
 
 type Env = "prod" | "staging";
 type Preset = "1d" | "1w" | "1m";
@@ -103,21 +103,6 @@ const PRESETS: { key: Preset; label: string; days: number }[] = [
 	{ key: "1w", label: "1w", days: 7 },
 	{ key: "1m", label: "1m", days: 30 },
 ];
-
-/** Tunable SLO thresholds (milliseconds unless noted). */
-const SLO = {
-	generateSignalsP99Ms: 2000,
-	hotPathTotalP99Ms: 3500,
-	queueLagP99Ms: 5,
-	/** Mirrors the sidecar's MONITOR_STALENESS_SLO_MS budget. */
-	barStalenessP99Ms: 10_000,
-	/** Expected SIP delay subtracted before staleness SLO (minutes). */
-	dataDelayMin: DEFAULT_DATA_DELAY_MIN,
-	shadowMatchMin: 0.99,
-	barCoverageMin: 0.99,
-	shadowSuccessMin: 0.99,
-	heartbeatGapMs: 90_000,
-} as const;
 
 const HOT_LABELS: Record<string, string> = {
 	fetch_data_ns: "fetch_data",

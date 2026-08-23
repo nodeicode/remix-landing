@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { renderEngineeringCard } from "~/utils/github-card.server";
+import { fetchGitHubActivity } from "~/utils/github-activity.server";
 import { fetchPublicMonitorSummary } from "~/utils/public-monitor.server";
 
 export const config = { runtime: "nodejs", maxDuration: 15 };
@@ -13,9 +14,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		console.warn("[api/github-card] public monitor unavailable", error);
 		return null;
 	});
+	const activityPromise = fetchGitHubActivity().catch(() => null);
 
 	try {
-		return new Response(renderEngineeringCard({ generatedAt: Date.now(), monitor: await monitorPromise }, theme), {
+		const [monitor, activity] = await Promise.all([monitorPromise, activityPromise]);
+		return new Response(renderEngineeringCard({ generatedAt: Date.now(), monitor, activity }, theme), {
 			headers: {
 				"Content-Type": "image/svg+xml; charset=utf-8",
 				"Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",

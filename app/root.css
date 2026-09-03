@@ -18,34 +18,39 @@ input {
 body {
 	background-color: var(--bg-color);
 }
-/* Scrollbar css */
+/* Scrollbar css — solid, always visible, gold accent */
 /* Firefox */
 .dark * {
-	scrollbar-width: 8px;
+	scrollbar-width: 10px;
 	scrollbar-color: var(--tw-prose-body) transparent;
 }
 
 * {
-	scrollbar-width: 8px;
+	scrollbar-width: 10px;
 	scrollbar-color: var(--tw-prose-body) transparent;
 }
 
 /* Chrome, Edge, and Safari */
 *::-webkit-scrollbar {
-	width: 8px;
+	width: 10px;
 }
 
 *::-webkit-scrollbar-track {
-	background: inherit;
+	background: #0b0d12;
 }
 
-.dark *::-webkit-scrollbar-thumb {
-	background-color: transparent;
-	border-radius: 10px;
-}
 *::-webkit-scrollbar-thumb {
-	background-color: transparent;
-	border-radius: 10px;
+	background: linear-gradient(180deg, #d7a447, #c9983f 45%, #8a6420);
+	border-radius: 6px;
+	border: 2px solid #0b0d12;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, #e6b657, #d7a447 45%, #a67a2c);
+}
+
+*::-webkit-scrollbar-corner {
+	background: #0b0d12;
 }
 /* ----- end Scrollbar css ----- */
 
@@ -59,8 +64,9 @@ body {
 	/* Font Family */
 	--font-family-sans: Graphik, sans-serif;
 	--font-family-serif: Merriweather, serif;
-	--font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-		"Courier New", monospace;
+	--font-family-mono:
+		ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+		monospace;
 
 	/* Spacing (from extend) */
 	--spacing-128: 32rem;

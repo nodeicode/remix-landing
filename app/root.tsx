@@ -17,17 +17,19 @@ import "./root.css";
 
 export const meta: MetaFunction = () => {
 	return [
-		{ title: "Trading Dashboard - Lohit Aryan" },
+		{ title: "Lohit Aryan" },
 		{ name: "viewport", content: "width=device-width,initial-scale=1,viewport-fit=cover" },
 		{
 			name: "description",
-			content: "Real-time trading dashboard with portfolio analytics and push notifications",
+			content:
+				"Lohit Aryan — backend & applied-ML engineer pushing the limits of performance: low-latency systems, MLOps, and high-traffic services. Optimization is the brand; the site is the demo.",
 		},
+		// theme-color stays dark for the dark brand page
 		// PWA Meta Tags
 		{ name: "mobile-web-app-capable", content: "yes" },
 		{ name: "apple-mobile-web-app-capable", content: "yes" },
 		{ name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-		{ name: "apple-mobile-web-app-title", content: "Trading Dashboard" },
+		{ name: "apple-mobile-web-app-title", content: "Lohit Aryan" },
 		{ name: "theme-color", content: "#09090b" },
 		// iOS Splash Screens
 		{ name: "apple-touch-fullscreen", content: "yes" },

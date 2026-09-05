@@ -1,15 +1,5 @@
 # Welcome to Remix!
 
-## Public engineering card
-
-Embed the live, server-rendered card anywhere that accepts an image (including a GitHub profile README):
-
-```html
-<img src="https://lohitaryan.dev/api/github-card" alt="Lohit Aryan Engineering Monitor" width="900" />
-```
-
-Use `?theme=light` for light backgrounds. The endpoint contains portfolio information, a sanitised public monitor summary, and recent commits from the public portfolio repository; it does not expose monitor or account credentials.
-
 - [Remix Docs](https://remix.run/docs)
 
 ## Fly Setup
